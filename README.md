@@ -92,7 +92,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/iamzaidmalik/phishguar
 
 **Alternative sources:**
 - [Kaggle — Malicious & Benign URLs](https://www.kaggle.com/datasets/siddharthkumar25/malicious-and-benign-urls)
-- [Google Drive Mirror]([https://drive.google.com/drive/folders/1Yl2Uq8Pf1e_TKjKRAhYoGcr5vQqKjI7p](https://drive.google.com/drive/folders/1-KU8hhM4oUKcxYr57oNP6rxKdhdnefvO?usp=sharing))
+- [Google Drive Mirror](https://drive.google.com/drive/folders/1-KU8hhM4OUKcxYr57oNP6rxKdhdnefvO?usp=sharing)
 
 Place the downloaded `phishing_site_urls.csv` in the `data/` folder.
 
