@@ -1,0 +1,37 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Python
+*.py text diff=python
+*.pyw text
+
+# Web
+*.html text diff=html
+*.css text
+*.js text
+*.json text
+
+# Config
+*.yml text
+*.yaml text
+*.toml text
+*.cfg text
+*.ini text
+*.md text
+*.txt text
+*.bat text crlf
+
+# Git
+.gitattributes text
+.gitignore text
+
+# Binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pdf binary
+*.pptx binary
+*.db binary
+*.pkl binary
+*.csv binary

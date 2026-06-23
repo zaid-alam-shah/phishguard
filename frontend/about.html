@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - PhishGuard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="navbar-inner">
+        <a href="/" class="nav-logo">
+            <div class="nav-logo-icon">P</div>
+            <div>
+                <div class="nav-logo-text">Phish<span>Guard</span></div>
+                <div class="nav-logo-sub">Phishing Detection System</div>
+            </div>
+        </a>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/about" class="nav-link active">About</a>
+            <a href="/contact" class="nav-link">Contact</a>
+            <a href="/terms" class="nav-link">Terms</a>
+        </div>
+    </div>
+</nav>
+
+<section class="page-header">
+    <div class="hero-badge" style="display:inline-flex;">
+        <span class="hero-badge-dot"></span>
+        About PhishGuard
+    </div>
+    <h1>Our Mission in <span>Cybersecurity</span></h1>
+    <p>We build tools that empower everyone to browse the web safely, without needing a degree in cybersecurity.</p>
+</section>
+
+<div class="about-grid">
+    <div class="about-card full">
+        <h3>Mission</h3>
+        <h2>Making the Web Safer, One URL at a Time</h2>
+        <p>PhishGuard is a final year project built by a team of three cybersecurity students at Hamdard University. Our goal is to create an accessible, accurate, and real-time phishing detection system that anyone can use. By combining rule-based analysis with a powerful machine learning model, we provide immediate feedback on whether a URL is safe or malicious — helping users avoid phishing attacks before they click.</p>
+    </div>
+
+    <div class="about-card">
+        <h3>How It Works</h3>
+        <h2>Dual-Layer Detection</h2>
+        <ul>
+            <li><strong style="color:var(--text);">Layer 1 — Rule Engine:</strong> Checks URLs against 15+ security rules (suspicious TLDs, brand impersonation, IP addresses, special characters, URL shorteners, etc.)</li>
+            <li><strong style="color:var(--text);">Layer 2 — ML Model:</strong> A Random Forest classifier (150 decision trees) trained on 500K+ URLs extracts 35 structural features and predicts phishing probability</li>
+            <li><strong style="color:var(--text);">Combined Verdict:</strong> Both scores are merged to produce a final risk assessment with clear visual feedback</li>
+        </ul>
+    </div>
+
+    <div class="about-card">
+        <h3>Performance</h3>
+        <h2>Model Accuracy</h2>
+        <ul>
+            <li><strong style="color:var(--text);">Accuracy:</strong> 90.94% on test data</li>
+            <li><strong style="color:var(--text);">Dataset:</strong> 507,196 URLs after deduplication</li>
+            <li><strong style="color:var(--text);">Features:</strong> 35 URL-based features</li>
+            <li><strong style="color:var(--text);">Top Predictors:</strong> Digit count, sensitive keywords, dot count, TLD patterns</li>
+            <li><strong style="color:var(--text);">Split:</strong> 80% training / 20% testing</li>
+        </ul>
+    </div>
+
+    <div class="about-card full">
+        <h3>Team</h3>
+        <h2>Meet the Developers</h2>
+        <div class="team-grid">
+            <div class="team-card">
+                <div class="team-avatar">I</div>
+                <h4>Ibtehaj</h4>
+                <p>Frontend &amp; UI Design</p>
+            </div>
+            <div class="team-card">
+                <div class="team-avatar">Z</div>
+                <h4>Zaid</h4>
+                <p>Backend &amp; ML Model</p>
+            </div>
+            <div class="team-card">
+                <div class="team-avatar">A</div>
+                <h4>Azaan</h4>
+                <p>Testing &amp; Documentation</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="about-card full">
+        <h3>Technology</h3>
+        <h2>Tech Stack</h2>
+        <div class="tech-stack">
+            <span class="tech-badge">Python</span>
+            <span class="tech-badge">Flask</span>
+            <span class="tech-badge">Scikit-Learn</span>
+            <span class="tech-badge">Random Forest</span>
+            <span class="tech-badge">Pandas</span>
+            <span class="tech-badge">NumPy</span>
+            <span class="tech-badge">SQLite</span>
+            <span class="tech-badge">Joblib</span>
+            <span class="tech-badge">Tailwind CSS</span>
+            <span class="tech-badge">JavaScript</span>
+            <span class="tech-badge">HTML5</span>
+            <span class="tech-badge">Gunicorn</span>
+        </div>
+    </div>
+</div>
+
+<footer class="footer">
+    <div class="footer-inner">
+        <div class="footer-brand">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <div style="width:28px;height:28px;background:var(--primary);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-weight:700;font-size:14px;color:var(--bg);">P</div>
+                <span style="font-family:var(--font-heading);color:var(--text);">Phish<span style="color:var(--primary);">Guard</span></span>
+            </div>
+            <p>Advanced phishing URL detection powered by machine learning. Protect yourself from online threats with real-time URL analysis.</p>
+        </div>
+        <div>
+            <h4>Pages</h4>
+            <a href="/">Home</a>
+            <a href="/about">About</a>
+            <a href="/contact">Contact</a>
+            <a href="/terms">Terms & Conditions</a>
+        </div>
+        <div>
+            <h4>Features</h4>
+            <a>URL Scanner</a>
+            <a>ML Detection</a>
+            <a>Rule Analysis</a>
+            <a>Security Chatbot</a>
+        </div>
+        <div>
+            <h4>Team</h4>
+            <a>Ibtehaj</a>
+            <a>Zaid</a>
+            <a>Azaan</a>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <span>&copy; 2026 PhishGuard. All rights reserved.</span>
+        <span>Built with Flask &amp; Scikit-Learn</span>
+    </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishGuard - Bulk Scan Results</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .result-safe { color: var(--primary) !important; }
+        .result-phishing { color: var(--accent) !important; }
+        .result-error { color: #FFB700 !important; }
+        .summary-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .summary-item {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        .summary-item .num {
+            font-family: var(--font-heading);
+            font-size: 28px;
+            text-shadow: 0 0 10px rgba(0,255,65,0.3);
+        }
+        .summary-item .num.phishing { color: var(--accent); text-shadow: 0 0 10px rgba(255,51,51,0.3); }
+        .summary-item .num.safe { color: var(--primary); }
+        .summary-item .num.errors { color: #FFB700; }
+        .summary-item .label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+        .result-row {
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s;
+        }
+        .result-row:hover {
+            background: rgba(0,255,65,0.02);
+        }
+        .result-row > div {
+            padding: 14px 16px;
+            font-size: 13px;
+        }
+        .result-row .idx {
+            width: 40px;
+            color: var(--text-muted);
+            font-family: var(--font-heading);
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .result-row .url-cell {
+            flex: 1;
+            min-width: 0;
+            color: var(--text-dim);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .result-row .url-cell a {
+            color: var(--text-dim);
+            text-decoration: none;
+        }
+        .result-row .url-cell a:hover {
+            color: var(--primary);
+        }
+        .result-row .verdict-cell {
+            width: 100px;
+            font-family: var(--font-heading);
+            font-weight: 600;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .result-row .score-cell {
+            width: 80px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .result-row .issues-cell {
+            width: 140px;
+            flex-shrink: 0;
+        }
+        @media (max-width: 768px) {
+            .result-row .score-cell,
+            .result-row .issues-cell { display: none; }
+            .result-row .verdict-cell { width: 80px; font-size: 12px; }
+            .result-row > div { padding: 12px 10px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="navbar-inner">
+        <a href="/" class="nav-logo">
+            <div class="nav-logo-icon">P</div>
+            <div>
+                <div class="nav-logo-text">Phish<span>Guard</span></div>
+                <div class="nav-logo-sub">Phishing Detection System</div>
+            </div>
+        </a>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/about" class="nav-link">About</a>
+            <a href="/contact" class="nav-link">Contact</a>
+            <a href="/terms" class="nav-link">Terms</a>
+        </div>
+    </div>
+</nav>
+
+<section class="hero">
+    <div class="hero-badge">
+        <span class="hero-badge-dot"></span>
+        Bulk Scan Complete
+    </div>
+    <h1>Scan <span>Results</span></h1>
+    <p>Detailed results for all scanned URLs. Color-coded by risk level for quick review.</p>
+</section>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6" id="resultsApp">
+    <div id="loadingState" style="text-align:center;padding:60px 0;">
+        <div class="loader"></div>
+        <p style="font-family:var(--font-heading);color:var(--primary);margin-top:16px;">LOADING RESULTS</p>
+    </div>
+
+    <div id="emptyState" class="hidden" style="text-align:center;padding:60px 0;">
+        <div style="font-family:var(--font-heading);font-size:48px;color:var(--text-muted);margin-bottom:16px;">:</div>
+        <p style="color:var(--text-dim);margin-bottom:24px;">No results found. Please run a bulk scan from the home page.</p>
+        <a href="/" class="btn-primary" style="display:inline-block;text-decoration:none;">Back to Home</a>
+    </div>
+
+    <div id="resultsContent" class="hidden">
+        <div class="summary-bar" id="summaryBar"></div>
+
+        <div class="card" style="border-color:rgba(0,255,65,0.15);">
+            <div class="flex items-center gap-3 mb-4">
+                <div style="font-family:var(--font-heading);color:var(--primary);font-size:13px;">DETAILED_RESULTS</div>
+                <div style="flex:1;height:1px;background:linear-gradient(90deg,var(--border-glow),transparent);"></div>
+                <span id="resultCount" style="font-size:11px;color:var(--text-muted);font-family:var(--font-heading);"></span>
+            </div>
+            <div id="resultsList"></div>
+        </div>
+
+        <div style="text-align:center;padding:32px 0;">
+            <a href="/" class="btn-primary" style="display:inline-block;text-decoration:none;">Back to Home</a>
+        </div>
+    </div>
+</main>
+
+<footer class="footer">
+    <div class="footer-inner">
+        <div class="footer-brand">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <div style="width:28px;height:28px;background:var(--primary);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-weight:700;font-size:14px;color:var(--bg);">P</div>
+                <span style="font-family:var(--font-heading);color:var(--text);">Phish<span style="color:var(--primary);">Guard</span></span>
+            </div>
+            <p>Advanced phishing URL detection powered by machine learning. Protect yourself from online threats with real-time URL analysis.</p>
+        </div>
+        <div>
+            <h4>Pages</h4>
+            <a href="/">Home</a>
+            <a href="/about">About</a>
+            <a href="/contact">Contact</a>
+            <a href="/terms">Terms & Conditions</a>
+        </div>
+        <div>
+            <h4>Features</h4>
+            <a>URL Scanner</a>
+            <a>ML Detection</a>
+            <a>Rule Analysis</a>
+            <a>Security Chatbot</a>
+        </div>
+        <div>
+            <h4>Team</h4>
+            <a>Ibtehaj</a>
+            <a>Zaid</a>
+            <a>Azaan</a>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <span>&copy; 2026 PhishGuard. All rights reserved.</span>
+        <span>Built with Flask &amp; Scikit-Learn</span>
+    </div>
+</footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get('key');
+
+    if (!key) {
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('emptyState').classList.remove('hidden');
+        return;
+    }
+
+    const results = JSON.parse(localStorage.getItem(key));
+    if (!results || !Array.isArray(results) || results.length === 0) {
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('emptyState').classList.remove('hidden');
+        return;
+    }
+
+    localStorage.removeItem(key);
+    renderResults(results);
+});
+
+function renderResults(results) {
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('resultsContent').classList.remove('hidden');
+
+    let total = results.length;
+    let phishing = 0, safe = 0, errors = 0;
+    results.forEach(r => {
+        if (r.error) errors++;
+        else if (r.final_verdict === 'phishing') phishing++;
+        else safe++;
+    });
+
+    document.getElementById('summaryBar').innerHTML = `
+        <div class="summary-item"><div class="num">${total}</div><div class="label">Total Scanned</div></div>
+        <div class="summary-item"><div class="num phishing">${phishing}</div><div class="label">Phishing</div></div>
+        <div class="summary-item"><div class="num safe">${safe}</div><div class="label">Safe</div></div>
+        <div class="summary-item"><div class="num errors">${errors}</div><div class="label">Errors</div></div>
+    `;
+
+    document.getElementById('resultCount').textContent = total + ' result' + (total !== 1 ? 's' : '');
+
+    const list = document.getElementById('resultsList');
+    list.innerHTML = results.map((r, idx) => {
+        if (r.error) {
+            return `
+                <div class="result-row">
+                    <div class="idx">${idx + 1}</div>
+                    <div class="url-cell"><span title="${escapeHtml(r.url)}">${escapeHtml(r.url)}</span></div>
+                    <div class="verdict-cell result-error">ERROR</div>
+                    <div class="score-cell" style="color:var(--text-muted);">-</div>
+                    <div class="issues-cell" style="font-size:11px;color:#FFB700;">${escapeHtml(r.error)}</div>
+                </div>
+            `;
+        }
+
+        const verdict = r.final_verdict;
+        const verdictClass = verdict === 'phishing' ? 'result-phishing' : 'result-safe';
+        const verdictLabel = verdict === 'phishing' ? 'PHISHING' : 'SAFE';
+        const mlPct = r.ml_result ? r.ml_result.phishing_probability : 0;
+        const riskScore = r.combined_risk_score || 0;
+        const issues = r.rule_based && r.rule_based.issues ? r.rule_based.issues : [];
+        const issuesText = issues.length > 0
+            ? issues.slice(0, 2).map(i => i.text).join('; ')
+            : 'None';
+
+        return `
+            <div class="result-row">
+                <div class="idx">${idx + 1}</div>
+                <div class="url-cell"><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" title="${escapeHtml(r.url)}">${escapeHtml(r.url)}</a></div>
+                <div class="verdict-cell ${verdictClass}">${verdictLabel}</div>
+                <div class="score-cell" style="color:${mlPct > 50 ? 'var(--accent)' : 'var(--primary)'}">${mlPct}%</div>
+                <div class="issues-cell" style="font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(issuesText)}">${issuesText.length > 20 ? escapeHtml(issuesText.substring(0, 20)) + '...' : escapeHtml(issuesText)}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+}
+</script>
+</body>
+</html>

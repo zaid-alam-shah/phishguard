@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishGuard - Phishing URL Detector</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="navbar-inner">
+        <a href="/" class="nav-logo">
+            <div class="nav-logo-icon">P</div>
+            <div>
+                <div class="nav-logo-text">Phish<span>Guard</span></div>
+                <div class="nav-logo-sub">Phishing Detection System</div>
+            </div>
+        </a>
+        <div class="nav-links">
+            <a href="/" class="nav-link active" data-page="home">Home</a>
+            <a href="/about" class="nav-link" data-page="about">About</a>
+            <a href="/contact" class="nav-link" data-page="contact">Contact</a>
+            <a href="/terms" class="nav-link" data-page="terms">Terms</a>
+        </div>
+    </div>
+</nav>
+
+<div id="page-home" class="page-section active">
+    <section class="hero">
+        <div class="hero-badge">
+            <span class="hero-badge-dot"></span>
+            AI-Powered Security Tool
+        </div>
+        <h1>Detect Phishing URLs with<br><span>Machine Intelligence</span></h1>
+        <p>PhishGuard uses a dual-layer approach — rule-based analysis and a Random Forest ML model trained on 500K+ URLs to identify phishing URLs and websites in real-time.</p>
+    </section>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6">
+        <div class="card mb-6" style="border-color:rgba(0,255,65,0.15);">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="section-label">URL Analyzer</div>
+                <div class="section-line"></div>
+            </div>
+
+            <div class="mode-toggle mb-4">
+                <button class="mode-option active" data-mode="single">Single Scan</button>
+                <button class="mode-option" data-mode="bulk">Bulk Scan</button>
+            </div>
+
+            <div id="singleMode" class="mode-panel active">
+                <div class="flex gap-4 mb-4">
+                    <input type="url" id="urlInput" placeholder="https://example.com" class="input-field">
+                    <button id="analyzeBtn" class="btn-primary" style="white-space:nowrap;">Scan URL</button>
+                </div>
+                <div class="flex flex-wrap gap-3">
+                    <span style="font-size:11px;color:var(--text-muted);font-family:var(--font-heading);padding-top:4px;">QUICK TEST:</span>
+                    <button class="example-btn" style="background:var(--bg-elevated);border:1px solid var(--border);padding:6px 14px;border-radius:4px;font-size:11px;color:var(--text-dim);cursor:pointer;font-family:var(--font-body);transition:all 0.2s;">https://www.google.com</button>
+                    <button class="example-btn" style="background:var(--bg-elevated);border:1px solid var(--border);padding:6px 14px;border-radius:4px;font-size:11px;color:var(--text-dim);cursor:pointer;font-family:var(--font-body);transition:all 0.2s;">http://bit.ly/suspicious</button>
+                    <button class="example-btn" style="background:var(--bg-elevated);border:1px solid var(--border);padding:6px 14px;border-radius:4px;font-size:11px;color:var(--text-dim);cursor:pointer;font-family:var(--font-body);transition:all 0.2s;">http://secure-paypa1.com</button>
+                    <button class="example-btn" style="background:var(--bg-elevated);border:1px solid var(--border);padding:6px 14px;border-radius:4px;font-size:11px;color:var(--text-dim);cursor:pointer;font-family:var(--font-body);transition:all 0.2s;">http://192.168.1.1/login</button>
+                </div>
+            </div>
+
+            <div id="bulkMode" class="mode-panel">
+                <div class="mb-4">
+                    <textarea id="bulkInput" class="textarea-field" placeholder="Paste URLs, one per line... (Max 20 URLs)&#10;&#10;https://example.com&#10;http://suspicious-site.tk/login&#10;http://bit.ly/abc123" rows="6"></textarea>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button id="bulkAnalyzeBtn" class="btn-primary" style="white-space:nowrap;">Scan All URLs</button>
+                    <span id="bulkCount" style="font-size:12px;color:var(--text-muted);font-family:var(--font-heading);letter-spacing:0.5px;"></span>
+                </div>
+            </div>
+        </div>
+
+        <div id="resultContainer" class="hidden mb-6">
+            <div class="card">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="section-label">Scan Result</div>
+                    <div class="section-line"></div>
+                    <div id="verdictBadge" class="px-4 py-1.5 rounded-full text-sm font-medium"></div>
+                </div>
+
+                <!-- Risk Assessment Bar -->
+                <div id="riskAssessBar" class="risk-assess-wrap mb-6">
+                    <div class="risk-assess-header">
+                        <span class="risk-assess-label">Risk Assessment</span>
+                        <span id="riskAssessText" class="risk-assess-value"></span>
+                    </div>
+                    <div class="risk-assess-track">
+                        <div id="riskAssessFill" class="risk-assess-fill"></div>
+                        <div class="risk-assess-marker" style="left:33%"></div>
+                        <div class="risk-assess-marker" style="left:66%"></div>
+                    </div>
+                    <div class="risk-assess-legend">
+                        <span>Safe</span>
+                        <span>Suspicious</span>
+                        <span>Dangerous</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="stat-card">
+                        <div class="stat-label">ML Prediction</div>
+                        <div id="mlPrediction" class="stat-number text-lg"></div>
+                        <div class="mt-3">
+                            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;">
+                                <span>Probability</span>
+                                <span id="mlPercent"></span>
+                            </div>
+                            <div style="height:8px;background:var(--bg-elevated);border-radius:4px;overflow:hidden;">
+                                <div id="mlBar" style="width:0%;height:100%;border-radius:4px;transition:all 0.5s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Rule Analysis</div>
+                        <div id="ruleRisk" class="stat-number text-lg"></div>
+                        <div class="mt-3">
+                            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;">
+                                <span>Risk Score</span>
+                                <span id="rulePercent"></span>
+                            </div>
+                            <div style="height:8px;background:var(--bg-elevated);border-radius:4px;overflow:hidden;">
+                                <div id="ruleBar" style="width:0%;height:100%;border-radius:4px;transition:all 0.5s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Combined Verdict</div>
+                        <div id="combinedScore" class="stat-number text-lg"></div>
+                        <div class="mt-3">
+                            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;">
+                                <span>Risk Level</span>
+                                <span id="combinedPercent"></span>
+                            </div>
+                            <div style="height:8px;background:var(--bg-elevated);border-radius:4px;overflow:hidden;">
+                                <div id="combinedBar" style="width:0%;height:100%;border-radius:4px;transition:all 0.5s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="urlShortenerInfo" class="hidden mb-4 p-3 rounded-lg" style="background:var(--bg-elevated);border:1px solid var(--border);">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span style="font-size:11px;color:#FFB700;font-family:var(--font-heading);">URL Shortener Detected</span>
+                        <span style="font-size:10px;background:rgba(255,183,0,0.15);color:#FFB700;padding:2px 8px;border-radius:4px;font-family:var(--font-heading);">Resolved</span>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-dim);font-family:var(--font-mono);">
+                        <div style="display:flex;gap:8px;margin-bottom:4px;">
+                            <span style="color:var(--text-muted);white-space:nowrap;">Original:</span>
+                            <span id="originalUrl" style="color:var(--text);word-break:break-all;"></span>
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <span style="color:var(--text-muted);white-space:nowrap;">Resolved:</span>
+                            <span id="resolvedUrl" style="color:var(--primary);word-break:break-all;"></span>
+                        </div>
+                    </div>
+                </div>
+                <div id="urlDetails" class="hidden">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="section-label">URL Details</div>
+                        <div class="section-line"></div>
+                    </div>
+                    <div id="detailTable" class="grid grid-cols-2 gap-2 text-sm mb-4" style="font-family:var(--font-mono);"></div>
+                </div>
+                <div id="issuesContainer" class="hidden">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="section-label">Flagged Issues</div>
+                        <div class="section-line"></div>
+                    </div>
+                    <div id="issuesList" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-bar mb-6">
+            <button class="tab-btn active" data-tab="tabAnalyze">Analyze</button>
+            <button class="tab-btn" data-tab="tabDashboard">Dashboard</button>
+            <button class="tab-btn" data-tab="tabHistory">History</button>
+            <button class="tab-btn" data-tab="tabHowItWorks">How It Works</button>
+            <button class="tab-btn" data-tab="tabChatbot">AI Security Assistant</button>
+        </div>
+
+        <div id="tabAnalyze" class="tab-content active">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6" id="quickStats">
+                <div class="stat-card">
+                    <div class="stat-number" id="statTotal">-</div>
+                    <div class="stat-label">Total Scans</div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">This session: <span id="statSession">0</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color:var(--accent);" id="statPhishing">-</div>
+                    <div class="stat-label">Phishing Detected</div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:4px;"><span id="statPhishingPct">0</span>% of scans</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="statSafe">-</div>
+                    <div class="stat-label">Safe URLs</div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:4px;"><span id="statSafePct">0</span>% of scans</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color:#FFB700;" id="statAvgRisk">-</div>
+                    <div class="stat-label">Avg Risk Score</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tabDashboard" class="tab-content hidden">
+            <div class="card">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="section-label">Scan Distribution</div>
+                    <div class="section-line"></div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="dashboardCards">
+                    <div class="stat-card"><div class="stat-number" id="dashTotal">-</div><div class="stat-label">Total Scans</div></div>
+                    <div class="stat-card"><div class="stat-number" style="color:var(--accent);" id="dashPhishing">-</div><div class="stat-label">Phishing</div></div>
+                    <div class="stat-card"><div class="stat-number" id="dashSafe">-</div><div class="stat-label">Safe</div></div>
+                    <div class="stat-card"><div class="stat-number" style="color:#FFB700;" id="dashAvgRisk">-</div><div class="stat-label">Avg Risk</div></div>
+                </div>
+                <div class="flex items-center justify-center py-8">
+                    <div class="pie-container">
+                        <canvas id="pieChart" width="180" height="180"></canvas>
+                        <div class="pie-center" id="chartCenterText">0</div>
+                    </div>
+                </div>
+                <div class="flex justify-center gap-8 mt-4">
+                    <div class="flex items-center gap-2"><div style="width:10px;height:10px;border-radius:50%;background:var(--primary);"></div><span style="font-size:12px;color:var(--text-dim);">Safe</span></div>
+                    <div class="flex items-center gap-2"><div style="width:10px;height:10px;border-radius:50%;background:var(--accent);"></div><span style="font-size:12px;color:var(--text-dim);">Phishing</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tabHistory" class="tab-content hidden">
+            <div class="card">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <div class="section-label">Scan History</div>
+                        <p style="font-size:12px;color:var(--text-muted);margin-top:2px;">Recent URL scan results</p>
+                    </div>
+                    <button id="clearHistory" class="btn-ghost" style="border-color:rgba(239,68,68,0.3);color:var(--destructive);font-size:12px;padding:8px 16px;">Clear All</button>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>URL</th><th>Original</th><th>Result</th><th>ML Score</th><th>Risk</th><th>Issues</th><th>Time</th></tr></thead>
+                        <tbody id="historyBody"><tr><td colspan="7" style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:13px;">No scan history yet. Enter a URL above to begin.</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="tabHowItWorks" class="tab-content hidden">
+            <div class="card mb-4">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="section-label">How PhishGuard Works</div>
+                    <div class="section-line"></div>
+                </div>
+                <!-- Steps -->
+                <div class="hiw-steps">
+                    <div class="hiw-step">
+                        <div class="hiw-step-num">1</div>
+                        <div>
+                            <div class="hiw-step-title">Enter a URL</div>
+                            <div class="hiw-step-desc">Paste any suspicious link into the URL Analyzer. PhishGuard accepts any web address — shortened URLs are automatically expanded before analysis.</div>
+                        </div>
+                    </div>
+                    <div class="hiw-step">
+                        <div class="hiw-step-num">2</div>
+                        <div>
+                            <div class="hiw-step-title">Rule-Based Analysis</div>
+                            <div class="hiw-step-desc">15+ security rules instantly check for red flags — IP-based domains, suspicious TLDs (.tk, .ml, .xyz), brand impersonation, missing HTTPS, excessive subdomains, and more.</div>
+                        </div>
+                    </div>
+                    <div class="hiw-step">
+                        <div class="hiw-step-num">3</div>
+                        <div>
+                            <div class="hiw-step-title">Machine Learning Detection</div>
+                            <div class="hiw-step-desc">A Random Forest classifier (150 decision trees, trained on 500K+ URLs) extracts 35 structural features from the URL and predicts phishing probability with 90.94% accuracy.</div>
+                        </div>
+                    </div>
+                    <div class="hiw-step">
+                        <div class="hiw-step-num">4</div>
+                        <div>
+                            <div class="hiw-step-title">Domain Intelligence</div>
+                            <div class="hiw-step-desc">WHOIS lookup checks domain age and expiry. SSL certificate is verified. Blacklist APIs (PhishTank, Google Safe Browsing) cross-reference known phishing databases.</div>
+                        </div>
+                    </div>
+                    <div class="hiw-step">
+                        <div class="hiw-step-num">5</div>
+                        <div>
+                            <div class="hiw-step-title">Combined Verdict</div>
+                            <div class="hiw-step-desc">All signals are merged into a single risk score. You get a clear Safe / Suspicious / Phishing verdict with a detailed breakdown of every flagged issue.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- What we detect grid -->
+            <div class="card">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="section-label">What We Detect</div>
+                    <div class="section-line"></div>
+                </div>
+                <div class="hiw-detect-grid">
+                    <div class="hiw-detect-item">
+                        <div class="hiw-detect-icon">⚠</div>
+                        <div>
+                            <div class="hiw-detect-title">Brand Impersonation</div>
+                            <div class="hiw-detect-desc">Fake PayPal, Google, Amazon, bank domains using typosquatting or lookalike characters</div>
+                        </div>
+                    </div>
+                    <div class="hiw-detect-item">
+                        <div class="hiw-detect-icon">🔗</div>
+                        <div>
+                            <div class="hiw-detect-title">URL Shorteners</div>
+                            <div class="hiw-detect-desc">bit.ly, tinyurl, and 50+ shortener services that hide the real destination</div>
+                        </div>
+                    </div>
+                    <div class="hiw-detect-item">
+                        <div class="hiw-detect-icon">🌐</div>
+                        <div>
+                            <div class="hiw-detect-title">Suspicious TLDs</div>
+                            <div class="hiw-detect-desc">High-risk extensions (.tk, .ml, .ga, .cf, .xyz) commonly used in phishing campaigns</div>
+                        </div>
+                    </div>
+                    <div class="hiw-detect-item">
+                        <div class="hiw-detect-icon">📡</div>
+                        <div>
+                            <div class="hiw-detect-title">IP-Based URLs</div>
+                            <div class="hiw-detect-desc">Direct IP address URLs (e.g. http://192.168.1.1/login) that bypass DNS entirely</div>
+                        </div>
+                    </div>
+                    <div class="hiw-detect-item">
+                        <div class="hiw-detect-icon">🔒</div>
+                        <div>
+                            <div class="hiw-detect-title">Missing HTTPS / SSL</div>
+                            <div class="hiw-detect-desc">Unencrypted HTTP connections and invalid or missing SSL certificates</div>
+                        </div>
+                    </div>
+                    <div class="hiw-detect-item">
+                        <div class="hiw-detect-icon">🕵</div>
+                        <div>
+                            <div class="hiw-detect-title">Obfuscation Techniques</div>
+                            <div class="hiw-detect-desc">Encoded characters, excessive subdomains, redirect chains, and homograph attacks</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tabChatbot" class="tab-content hidden">
+            <div class="card">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="section-label">Security Assistant</div>
+                    <div class="section-line"></div>
+                </div>
+                <div id="chatMessages" style="height:360px;overflow-y:auto;padding:8px 0;">
+                    <div class="chat-message">
+                        <div class="chat-avatar">PG</div>
+                        <div class="chat-bubble"><p>Hello! I am PhishGuard's security assistant. Ask me about phishing types, how to detect phishing, staying safe online, URL safety, 2FA, ransomware, or how PhishGuard works.</p></div>
+                    </div>
+                </div>
+                <div class="flex gap-3 mt-4">
+                    <input type="text" id="chatInput" placeholder="Ask a question..." class="input-field">
+                    <button id="chatSend" class="btn-primary" style="white-space:nowrap;">Send</button>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-3">
+                    <button class="chat-quick" style="background:var(--bg-elevated);border:1px solid var(--border);padding:4px 12px;border-radius:4px;font-size:11px;color:var(--text-dim);cursor:pointer;font-family:var(--font-body);">What is phishing?</button>
+                    <button class="chat-quick" style="background:var(--bg-elevated);border:1px solid var(--border);padding:4px 12px;border-radius:4px;font-size:11px;color:var(--text-dim);cursor:pointer;font-family:var(--font-body);">How to detect phishing?</button>
+                    <button class="chat-quick" style="background:var(--bg-elevated);border:1px solid var(--border);padding:4px 12px;border-radius:4px;font-size:11px;color:var(--text-dim);cursor:pointer;font-family:var(--font-body);">How does PhishGuard work?</button>
+                    <button class="chat-quick" style="background:var(--bg-elevated);border:1px solid var(--border);padding:4px 12px;border-radius:4px;font-size:11px;color:var(--text-dim);cursor:pointer;font-family:var(--font-body);">What is 2FA?</button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div id="page-about" class="page-section">
+    <section class="page-header">
+        <div class="hero-badge" style="display:inline-flex;">
+            <span class="hero-badge-dot"></span>
+            About PhishGuard
+        </div>
+        <h1>Our Mission in <span>Cybersecurity</span></h1>
+        <p>We build tools that empower everyone to browse the web safely, without needing a degree in cybersecurity.</p>
+    </section>
+    <div class="about-grid">
+        <div class="about-card full">
+            <h3>Mission</h3>
+            <h2>Making the Web Safer, One URL at a Time</h2>
+            <p>PhishGuard is a final year project built by a team of three cybersecurity students at Hamdard University. Our goal is to create an accessible, accurate, and real-time phishing detection system that anyone can use. By combining rule-based analysis with a powerful machine learning model, we provide immediate feedback on whether a URL is safe or malicious — helping users avoid phishing attacks before they click.</p>
+        </div>
+        <div class="about-card">
+            <h3>How It Works</h3>
+            <h2>Dual-Layer Detection</h2>
+            <ul>
+                <li><strong style="color:var(--text);">Layer 1 — Rule Engine:</strong> Checks URLs against 15+ security rules (suspicious TLDs, brand impersonation, IP addresses, special characters, URL shorteners, etc.)</li>
+                <li><strong style="color:var(--text);">Layer 2 — ML Model:</strong> A Random Forest classifier (150 decision trees) trained on 500K+ URLs extracts 35 structural features and predicts phishing probability</li>
+                <li><strong style="color:var(--text);">Combined Verdict:</strong> Both scores are merged to produce a final risk assessment with clear visual feedback</li>
+            </ul>
+        </div>
+        <div class="about-card">
+            <h3>Performance</h3>
+            <h2>Model Accuracy</h2>
+            <ul>
+                <li><strong style="color:var(--text);">Accuracy:</strong> 90.94% on test data</li>
+                <li><strong style="color:var(--text);">Dataset:</strong> 507,196 URLs after deduplication</li>
+                <li><strong style="color:var(--text);">Features:</strong> 35 URL-based features</li>
+                <li><strong style="color:var(--text);">Top Predictors:</strong> Digit count, sensitive keywords, dot count, TLD patterns</li>
+                <li><strong style="color:var(--text);">Split:</strong> 80% training / 20% testing</li>
+            </ul>
+        </div>
+        <div class="about-card full">
+            <h3>Team</h3>
+            <h2>Meet the Developers</h2>
+            <div class="team-grid">
+                <div class="team-card">
+                    <div class="team-avatar">I</div>
+                    <h4>Ibtehaj Mubarak</h4>
+                    <p>Frontend &amp; UI Design</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">Z</div>
+                    <h4>Zaid Alam Shah</h4>
+                    <p>Backend &amp; ML Model</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">A</div>
+                    <h4>Azaan Rashid</h4>
+                    <p>Testing &amp; Documentation</p>
+                </div>
+            </div>
+        </div>
+        <div class="about-card full">
+            <h3>Technology</h3>
+            <h2>Tech Stack</h2>
+            <div class="tech-stack">
+                <span class="tech-badge">Python</span>
+                <span class="tech-badge">Flask</span>
+                <span class="tech-badge">Scikit-Learn</span>
+                <span class="tech-badge">Random Forest</span>
+                <span class="tech-badge">Pandas</span>
+                <span class="tech-badge">NumPy</span>
+                <span class="tech-badge">SQLite</span>
+                <span class="tech-badge">Joblib</span>
+                <span class="tech-badge">Tailwind CSS</span>
+                <span class="tech-badge">JavaScript</span>
+                <span class="tech-badge">HTML5</span>
+                <span class="tech-badge">Gunicorn</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="page-contact" class="page-section">
+    <section class="page-header">
+        <div class="hero-badge" style="display:inline-flex;">
+            <span class="hero-badge-dot"></span>
+            Get In Touch
+        </div>
+        <h1>Contact <span>Us</span></h1>
+        <p>Have a question, suggestion, or found a phishing URL to report? We would love to hear from you.</p>
+    </section>
+    <div class="contact-grid" style="padding-bottom:60px;">
+        <div class="contact-form">
+            <h2>Send a Message</h2>
+            <p>Fill out the form below and we will get back to you.</p>
+            <form id="contactForm">
+                <div class="form-group">
+                    <label for="name">Your Name</label>
+                    <input type="text" id="name" class="input-field" placeholder="John Doe" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" class="input-field" placeholder="john@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="subject">Subject</label>
+                    <input type="text" id="subject" class="input-field" placeholder="How can we help?" required>
+                </div>
+                <div class="form-group">
+                    <label for="message">Message</label>
+                    <textarea id="message" placeholder="Write your message here..." required></textarea>
+                </div>
+                <button type="submit" class="btn-primary" style="width:100%;">Send Message</button>
+            </form>
+            <div id="contactSuccess" class="hidden" style="display:none;margin-top:16px;padding:16px;background:var(--primary-dim);border:1px solid rgba(0,255,65,0.2);border-radius:8px;text-align:center;">
+                <p style="color:var(--primary);font-family:var(--font-heading);">MESSAGE SENT</p>
+                <p style="font-size:13px;color:var(--text-dim);margin-top:4px;">Thank you for reaching out. We will respond shortly.</p>
+            </div>
+        </div>
+        <div class="contact-info">
+            <div class="contact-info-card">
+                <div class="contact-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                </div>
+                <div>
+                    <h4>Email</h4>
+                    <p>phishguard@example.com</p>
+                </div>
+            </div>
+            <div class="contact-info-card">
+                <div class="contact-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </div>
+                <div>
+                    <h4>Location</h4>
+                    <p>Hamdard University, Karachi, Pakistan</p>
+                </div>
+            </div>
+            <div class="contact-info-card">
+                <div class="contact-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div>
+                    <h4>Response Time</h4>
+                    <p>We typically respond within 24 hours</p>
+                </div>
+            </div>
+            <div class="card" style="margin-top:8px;">
+                <p style="font-size:12px;color:var(--text-muted);line-height:1.7;">
+                    Found a suspicious URL? Use the <a href="/" style="color:var(--primary);">URL Analyzer</a> on our home page to check it instantly.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="page-terms" class="page-section">
+    <section class="page-header">
+        <div class="hero-badge" style="display:inline-flex;">
+            <span class="hero-badge-dot"></span>
+            Legal
+        </div>
+        <h1>Terms &amp; <span>Conditions</span></h1>
+        <p>Please read these terms carefully before using PhishGuard.</p>
+    </section>
+    <div class="terms-content">
+        <section><h2>1. Acceptance of Terms</h2><p>By accessing or using PhishGuard (the "Service"), you agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use the Service. PhishGuard is a final year cybersecurity project developed by students at Hamdard University.</p></section>
+        <section><h2>2. Description of Service</h2><p>PhishGuard provides a web-based phishing URL detection system that analyzes URLs using a combination of rule-based analysis and machine learning. The Service is provided for educational and informational purposes only. It is not a substitute for professional cybersecurity solutions.</p></section>
+        <section><h2>3. Disclaimer of Warranties</h2><p>The Service is provided on an "as is" and "as available" basis without any warranties of any kind, either express or implied. PhishGuard does not guarantee that:</p><ul><li>The Service will detect all phishing URLs with 100% accuracy</li><li>The Service will be uninterrupted or error-free</li><li>Any URL marked as "safe" is completely free of risk</li><li>Any URL marked as "phishing" is malicious</li></ul></section>
+        <section><h2>4. Limitation of Liability</h2><p>In no event shall the PhishGuard team, its members, or Hamdard University be liable for any direct, indirect, incidental, special, consequential, or punitive damages arising out of or relating to the use of or inability to use the Service. This includes, but is not limited to, damages for loss of data, financial loss, or cybersecurity incidents that occur as a result of using or relying on the Service.</p></section>
+        <section><h2>5. User Responsibilities</h2><p>As a user of PhishGuard, you agree to:</p><ul><li>Use the Service only for lawful purposes</li><li>Not attempt to reverse engineer, disrupt, or abuse the Service</li><li>Not submit URLs with malicious intent to attack the system</li><li>Understand that the Service is an academic project and may have limitations</li><li>Exercise your own judgment when evaluating URL safety</li></ul></section>
+        <section><h2>6. Privacy</h2><p>PhishGuard stores URLs submitted for analysis along with the analysis results in a local database. This data is used solely for:</p><ul><li>Displaying scan history to users</li><li>Generating aggregate statistics (total scans, phishing percentages, etc.)</li><li>Improving the Service</li></ul><p>We do not collect personal information, track users across sessions, or share submitted URLs with third parties. Scan data is stored locally and can be cleared by the user at any time.</p></section>
+        <section><h2>7. Changes to Terms</h2><p>We reserve the right to modify these terms at any time. Changes will be effective immediately upon posting to this page. Continued use of the Service after changes constitutes acceptance of the new terms.</p></section>
+        <section><h2>8. Contact</h2><p>For questions about these terms, please <a href="/contact" style="color:var(--primary);">contact us</a>.</p></section>
+        <section><h2>9. Governing Law</h2><p>These terms shall be governed by and construed in accordance with the laws of Pakistan. Any disputes arising under these terms shall be subject to the jurisdiction of the courts of Karachi, Pakistan.</p></section>
+        <div style="margin-top:40px;padding:20px;border:1px solid var(--border);border-radius:8px;text-align:center;">
+            <p style="font-family:var(--font-heading);color:var(--primary);font-size:13px;">LAST UPDATED: JUNE 2026</p>
+            <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">PhishGuard v1.0 — Hamdard University, Karachi</p>
+        </div>
+    </div>
+</div>
+
+<div id="page-results" class="page-section">
+    <section class="page-header">
+        <div class="hero-badge" style="display:inline-flex;">
+            <span class="hero-badge-dot"></span>
+            Bulk Scan Complete
+        </div>
+        <h1>Scan <span>Results</span></h1>
+        <p>Detailed results for all scanned URLs. Color-coded by risk level for quick review.</p>
+    </section>
+    <main class="max-w-7xl mx-auto px-4 sm:px-6" id="resultsApp">
+        <div id="resultsEmpty" class="hidden" style="text-align:center;padding:60px 0;">
+            <div style="font-family:var(--font-heading);font-size:48px;color:var(--text-muted);margin-bottom:16px;">:</div>
+            <p style="color:var(--text-dim);margin-bottom:24px;">No results found. Please run a bulk scan from the home page.</p>
+            <a href="/" class="btn-primary" style="display:inline-block;text-decoration:none;">Back to Home</a>
+        </div>
+        <div id="resultsContent" class="hidden">
+            <div class="summary-bar" id="summaryBar"></div>
+            <div class="card" style="border-color:rgba(0,255,65,0.15);">
+                <div class="flex items-center gap-3 mb-4">
+                    <div style="font-family:var(--font-heading);color:var(--primary);font-size:13px;">DETAILED_RESULTS</div>
+                    <div style="flex:1;height:1px;background:linear-gradient(90deg,var(--border-glow),transparent);"></div>
+                    <span id="resultCount" style="font-size:11px;color:var(--text-muted);font-family:var(--font-heading);"></span>
+                </div>
+                <div id="resultsList"></div>
+            </div>
+            <div style="text-align:center;padding:32px 0;">
+                <a href="/" class="btn-primary" style="display:inline-block;text-decoration:none;">Back to Home</a>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div id="loadingOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:999;">
+    <div class="card" style="text-align:center;padding:40px;min-width:340px;" id="loadingCard">
+        <div class="loader"></div>
+        <p id="loadingTitle" style="font-family:var(--font-heading);color:var(--primary);margin-bottom:4px;">ANALYZING URL</p>
+        <p id="loadingSub" style="font-size:12px;color:var(--text-muted);">Running ML model and rule-based checks</p>
+        <div id="loadingProgress" style="margin-top:20px;display:none;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:6px;">
+                <span id="progressText">0 / 0 URLs</span>
+                <span id="progressPct">0%</span>
+            </div>
+            <div style="height:6px;background:var(--bg-elevated);border-radius:3px;overflow:hidden;">
+                <div id="progressBar" style="width:0%;height:100%;background:var(--primary);border-radius:3px;transition:width 0.3s;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer class="footer">
+    <div class="footer-inner">
+        <div class="footer-brand">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <div style="width:28px;height:28px;background:var(--primary);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-weight:700;font-size:14px;color:var(--bg);">P</div>
+                <span style="font-family:var(--font-heading);color:var(--text);">Phish<span style="color:var(--primary);">Guard</span></span>
+            </div>
+            <p>Advanced phishing URL detection powered by machine learning. Protect yourself from online threats with real-time URL analysis.</p>
+        </div>
+        <div>
+            <h4>Pages</h4>
+            <a href="/">Home</a>
+            <a href="/about">About</a>
+            <a href="/contact">Contact</a>
+            <a href="/terms">Terms & Conditions</a>
+        </div>
+        <div>
+            <h4>Features</h4>
+            <a>URL Scanner</a>
+            <a>ML Detection</a>
+            <a>Rule Analysis</a>
+            <a>Security Chatbot</a>
+        </div>
+        <div>
+            <h4>Team</h4>
+            <a>Ibtehaj Mubarak</a>
+            <a>Zaid Alam Shah</a>
+            <a>Azaan Rashid</a>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <span>&copy; 2026 PhishGuard. All rights reserved.</span>
+        <span>Built with Flask &amp; Scikit-Learn</span>
+    </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
