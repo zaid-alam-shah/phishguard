@@ -36,7 +36,7 @@ PhishGuard analyzes URLs using a **dual-detection approach**: rule-based heurist
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/phishguard.git
+git clone https://github.com/zaid-alam-shah/phishguard.git
 cd phishguard
 ```
 
