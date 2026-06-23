@@ -2,6 +2,7 @@ import os
 import logging
 import secrets
 import requests
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
 from flask import Flask, request, jsonify, send_from_directory
@@ -117,8 +118,6 @@ def predict():
 
     scan_url = resolved_url if was_shortened else normalized_url
 
-    time.sleep(1.5)
-
     rule_result = analyze_url(scan_url)
 
     whois_issues, whois_risk, domain_age = get_domain_risk_issues(scan_url)
@@ -186,6 +185,17 @@ def bulk_predict():
 
     if len(urls) > 20:
         return jsonify({'error': 'Maximum 20 URLs per bulk scan'}), 400
+
+    if REQUIRE_API_KEY:
+        auth_header = request.headers.get('Authorization', '')
+        api_key = request.args.get('api_key', '')
+        valid = False
+        if auth_header.startswith('Bearer '):
+            valid = validate_api_key(auth_header[7:])
+        if not valid and api_key:
+            valid = validate_api_key(api_key)
+        if not valid:
+            return jsonify({'error': 'Valid API key required. Set REQUIRE_API_KEY=false to disable.'}), 401
 
     def process_single_url(args):
         i, raw_url = args
