@@ -17,7 +17,7 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
     .logo {
       width: 32px;
@@ -32,6 +32,93 @@
     }
     h1 { font-size: 18px; font-weight: 600; }
     .subtitle { font-size: 11px; color: #94a3b8; margin-top: -2px; }
+
+    /* ── Real-Time Protection Toggle ── */
+    .protection-card {
+      background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(139,92,246,0.12));
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .protection-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .protection-left .shield {
+      font-size: 18px;
+    }
+    .protection-left .label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+    .protection-left .label small {
+      display: block;
+      font-weight: 400;
+      font-size: 10px;
+      color: #64748b;
+      margin-top: 1px;
+    }
+    .protection-status {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    .protection-status.active {
+      background: rgba(16,185,129,0.2);
+      color: #34d399;
+    }
+    .protection-status.inactive {
+      background: rgba(100,116,139,0.2);
+      color: #64748b;
+    }
+
+    /* Toggle Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #334155;
+      transition: .3s;
+      border-radius: 22px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #94a3b8;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    .switch input:checked + .slider {
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    }
+    .switch input:checked + .slider:before {
+      transform: translateX(18px);
+      background-color: #fff;
+    }
+
     .input-group { display: flex; gap: 8px; margin-bottom: 12px; }
     input {
       flex: 1;
@@ -99,18 +186,19 @@
       border: 1px solid #ef4444;
       color: #fca5a5;
     }
+    .status.risky {
+      display: block;
+      background: #451a03;
+      border: 1px solid #f59e0b;
+      color: #fcd34d;
+    }
     .status.error {
       display: block;
       background: #451a03;
       border: 1px solid #f97316;
       color: #fdba74;
     }
-    .status .risk-score {
-      font-size: 28px;
-      font-weight: 700;
-      line-height: 1;
-    }
-    .status .verdict { font-size: 15px; font-weight: 600; margin-top: 4px; }
+    .status .verdict { font-size: 16px; font-weight: 700; margin-top: 2px; }
     .status .issues { font-size: 11px; margin-top: 6px; color: inherit; opacity: .8; }
     .details { display: none; background: #1e293b; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
     .details.show { display: block; }
@@ -149,6 +237,7 @@
     .badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }
     .badge.safe { background: #064e3b; color: #6ee7b7; }
     .badge.phishing { background: #450a0a; color: #fca5a5; }
+    .badge.risky { background: #451a03; color: #fcd34d; }
   </style>
 </head>
 <body>
@@ -157,6 +246,26 @@
     <div>
       <h1>PhishGuard</h1>
       <div class="subtitle">URL Security Scanner</div>
+    </div>
+  </div>
+
+  <!-- Real-Time Protection Toggle -->
+  <div class="protection-card">
+    <div class="protection-left">
+      <span class="shield">🛡️</span>
+      <div>
+        <div class="label">
+          Real-Time Protection
+          <small>Scans every site you visit</small>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span class="protection-status inactive" id="protectionStatus">OFF</span>
+      <label class="switch">
+        <input type="checkbox" id="realtimeToggle">
+        <span class="slider"></span>
+      </label>
     </div>
   </div>
 

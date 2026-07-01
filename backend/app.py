@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import secrets
 import requests
@@ -8,18 +9,23 @@ from functools import wraps
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
-from config import config
-from database import init_db, save_scan, get_recent_scans, clear_history, get_stats, check_rate_limit
-from utils.feature_extractor import extract_features
-from utils.validators import validate_url
-from utils.rule_analyzer import analyze_url
-from utils.unshortener import unshorten_url
-from utils.whois_checker import get_domain_risk_issues
-from utils.ssl_checker import get_ssl_risk_issues
-from utils.auth import generate_api_key, validate_api_key, require_api_key
-from models.detector import PhishingDetector
+# Ensure project root is in sys.path for both direct execution and gunicorn/Docker
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+from backend.config import config
+from backend.database import init_db, save_scan, get_recent_scans, clear_history, get_stats, check_rate_limit
+from backend.utils.feature_extractor import extract_features
+from backend.utils.validators import validate_url
+from backend.utils.rule_analyzer import analyze_url
+from backend.utils.unshortener import unshorten_url
+from backend.utils.whois_checker import get_domain_risk_issues
+from backend.utils.ssl_checker import get_ssl_risk_issues
+from backend.utils.auth import generate_api_key, validate_api_key, require_api_key
+from backend.models.detector import PhishingDetector
 from apscheduler.schedulers.background import BackgroundScheduler
-import auto_retrain
+from backend import auto_retrain
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -40,6 +46,13 @@ BLOCKED_PATTERNS = ['.env', '.git', '.pkl', '.db', '.sqlite', '.sqlite3', '.py',
 
 RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX = 30
+
+ADMIN_API_KEY = os.getenv('ADMIN_API_KEY', secrets.token_hex(16))
+REQUIRE_API_KEY = os.getenv('REQUIRE_API_KEY', '').lower() in ('true', '1', 'yes')
+
+if not os.getenv('ADMIN_API_KEY'):
+    logger.warning('ADMIN_API_KEY not set — auto-generated (check server output on first run)')
+    logger.warning('Set ADMIN_API_KEY in .env for persistence')
 
 
 @app.after_request
@@ -146,7 +159,11 @@ def predict():
         logger.error(f'ML prediction error: {ml_error}')
         return jsonify({'error': 'ML model unavailable'}), 503
 
+    # Boost combined risk when multiple high-severity rule flags are present
+    high_severity_count = sum(1 for issue in rule_result['issues'] if issue.get('severity') == 'high')
     combined_risk = max(rule_result['risk_score'], ml_result['phishing_probability'])
+    if high_severity_count >= 2:
+        combined_risk = min(combined_risk + 15, 100)
 
     save_scan(
         url=scan_url,
@@ -157,6 +174,14 @@ def predict():
         rule_flags=[i['text'] for i in rule_result['issues']]
     )
 
+    # 3-tier verdict: safe (<40), risky (40-59), phishing (60+)
+    if combined_risk >= 60:
+        verdict = 'phishing'
+    elif combined_risk >= 40:
+        verdict = 'risky'
+    else:
+        verdict = 'safe'
+
     return jsonify({
         'url': scan_url,
         'original_url': original_url if was_shortened else None,
@@ -165,7 +190,7 @@ def predict():
         'rule_based': rule_result,
         'ml_result': ml_result,
         'combined_risk_score': combined_risk,
-        'final_verdict': 'phishing' if combined_risk > 50 else 'safe'
+        'final_verdict': verdict
     })
 
 
@@ -242,7 +267,10 @@ def bulk_predict():
         if ml_error:
             return {'url': scan_url, 'error': 'ML model unavailable', 'index': i}
 
+        high_severity_count = sum(1 for issue in rule_result['issues'] if issue.get('severity') == 'high')
         combined_risk = max(rule_result['risk_score'], ml_result['phishing_probability'])
+        if high_severity_count >= 2:
+            combined_risk = min(combined_risk + 15, 100)
 
         save_scan(
             url=scan_url,
@@ -253,6 +281,14 @@ def bulk_predict():
             rule_flags=[j['text'] for j in rule_result['issues']]
         )
 
+        # 3-tier verdict: safe (<40), risky (40-59), phishing (60+)
+        if combined_risk >= 60:
+            verdict = 'phishing'
+        elif combined_risk >= 40:
+            verdict = 'risky'
+        else:
+            verdict = 'safe'
+
         return {
             'index': i,
             'url': scan_url,
@@ -262,7 +298,7 @@ def bulk_predict():
             'rule_based': rule_result,
             'ml_result': ml_result,
             'combined_risk_score': combined_risk,
-            'final_verdict': 'phishing' if combined_risk > 50 else 'safe'
+            'final_verdict': verdict
         }
 
     # Process all URLs in parallel — max 6 workers to avoid overloading
@@ -368,14 +404,6 @@ def chatbot():
         return jsonify({'reply': 'Sorry, I\'m having trouble responding right now. Please try again.'}), 502
 
 
-ADMIN_API_KEY = os.getenv('ADMIN_API_KEY', secrets.token_hex(16))
-REQUIRE_API_KEY = os.getenv('REQUIRE_API_KEY', '').lower() in ('true', '1', 'yes')
-
-if not os.getenv('ADMIN_API_KEY'):
-    logger.warning('ADMIN_API_KEY not set — auto-generated (check server output on first run)')
-    logger.warning('Set ADMIN_API_KEY in .env for persistence')
-
-
 def require_admin_key(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -391,9 +419,10 @@ def require_admin_key(f):
 def list_api_keys():
     import sqlite3
     conn = sqlite3.connect(config.DATABASE_PATH)
-    rows = conn.execute("SELECT id, name, created_at, last_used, is_active FROM api_keys ORDER BY created_at DESC").fetchall()
+    cursor = conn.execute("SELECT id, name, created_at, last_used, is_active FROM api_keys ORDER BY created_at DESC")
+    rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
-    return jsonify({'keys': [{key: row[key] for key in row.keys()} for row in rows], 'admin_key': ADMIN_API_KEY[:8] + '...'})
+    return jsonify({'keys': rows, 'admin_key': ADMIN_API_KEY[:8] + '...'})
 
 
 @app.route('/api/admin/keys', methods=['POST'])
@@ -408,7 +437,7 @@ def create_api_key():
 @app.route('/api/admin/keys/<key_hash>', methods=['DELETE'])
 @require_admin_key
 def revoke_api_key(key_hash):
-    from utils.auth import remove_api_key
+    from backend.utils.auth import remove_api_key
     remove_api_key(key_hash)
     return jsonify({'message': 'API key revoked'})
 

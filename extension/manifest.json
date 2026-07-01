@@ -1,18 +1,21 @@
 {
   "manifest_version": 3,
   "name": "PhishGuard URL Scanner",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Scan suspicious URLs with PhishGuard before clicking. Detects phishing, malicious shorteners, and unsafe domains.",
   "permissions": [
     "contextMenus",
     "storage",
     "notifications",
     "clipboardRead",
-    "activeTab"
+    "activeTab",
+    "webNavigation",
+    "scripting"
   ],
   "host_permissions": [
     "http://127.0.0.1:8080/*",
-    "http://localhost:8080/*"
+    "http://localhost:8080/*",
+    "<all_urls>"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -29,5 +32,9 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "web_accessible_resources": [{
+    "resources": ["warning.html", "warning.js"],
+    "matches": ["<all_urls>"]
+  }]
 }

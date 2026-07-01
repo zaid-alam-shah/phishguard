@@ -204,9 +204,9 @@ function displayResults(data) {
 
     const verdict = data.final_verdict;
     const badge = document.getElementById('verdictBadge');
-    const badgeClass = verdict === 'phishing' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400';
+    const badgeClass = verdict === 'phishing' ? 'bg-red-500/20 text-red-400' : (verdict === 'risky' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400');
     badge.className = `px-4 py-1.5 rounded-full text-sm font-medium ${badgeClass}`;
-    badge.textContent = verdict === 'phishing' ? 'Phishing' : 'Safe';
+    badge.textContent = verdict === 'phishing' ? 'Phishing' : (verdict === 'risky' ? 'Risky' : 'Safe');
 
     const urlInfo = document.getElementById('urlShortenerInfo');
     if (data.was_shortened && data.original_url) {
@@ -242,12 +242,15 @@ function displayResults(data) {
     document.getElementById('rulePercent').textContent = ruleData.risk_score + '% risk score';
 
     const combined = data.combined_risk_score;
-    document.getElementById('combinedScore').textContent = combined > 50 ? 'Phishing' : 'Safe';
-    document.getElementById('combinedScore').className = `text-lg font-semibold ${combined > 50 ? 'text-red-400' : 'text-green-400'}`;
+    const combinedLabel = combined >= 60 ? 'Phishing' : (combined >= 40 ? 'Risky' : 'Safe');
+    const combinedColor = combined >= 60 ? 'text-red-400' : (combined >= 40 ? 'text-yellow-400' : 'text-green-400');
+    document.getElementById('combinedScore').textContent = combinedLabel;
+    document.getElementById('combinedScore').className = `text-lg font-semibold ${combinedColor}`;
 
     const combinedBar = document.getElementById('combinedBar');
     combinedBar.style.width = combined + '%';
-    combinedBar.className = `h-2 rounded-full transition-all duration-500 ${combined > 50 ? 'bg-red-500' : 'bg-green-500'}`;
+    const barColor = combined >= 60 ? 'bg-red-500' : (combined >= 40 ? 'bg-yellow-500' : 'bg-green-500');
+    combinedBar.className = `h-2 rounded-full transition-all duration-500 ${barColor}`;
     document.getElementById('combinedPercent').textContent = combined + '% combined risk';
 
     // Risk Assessment Bar
@@ -540,7 +543,8 @@ function displayBulkResults(results) {
 
     const total = results.length;
     const phishing = results.filter(r => !r.error && r.final_verdict === 'phishing').length;
-    const safe = results.filter(r => !r.error && r.final_verdict !== 'phishing').length;
+    const risky = results.filter(r => !r.error && r.final_verdict === 'risky').length;
+    const safe = results.filter(r => !r.error && r.final_verdict === 'safe').length;
     const errors = results.filter(r => r.error).length;
 
     const panel = document.createElement('div');
@@ -564,6 +568,10 @@ function displayBulkResults(results) {
                 <div class="bulk-sum-num" style="color:var(--accent)">${phishing}</div>
                 <div class="bulk-sum-label">Phishing</div>
             </div>
+            ${risky > 0 ? `<div class="bulk-sum-card">
+                <div class="bulk-sum-num" style="color:var(--warning)">${risky}</div>
+                <div class="bulk-sum-label">Risky</div>
+            </div>` : ''}
             <div class="bulk-sum-card safe">
                 <div class="bulk-sum-num" style="color:var(--primary)">${safe}</div>
                 <div class="bulk-sum-label">Safe</div>
@@ -587,10 +595,14 @@ function displayBulkResults(results) {
                             <td colspan="3" style="text-align:center;color:var(--warning);font-size:12px">${escapeHtml(r.error)}</td>
                         </tr>`;
                     }
-                    const isP = r.final_verdict === 'phishing';
+                    const v = r.final_verdict || 'safe';
+                    const isP = v === 'phishing';
+                    const isR = v === 'risky';
                     const mlPct = r.ml_result ? r.ml_result.phishing_probability : 0;
                     const risk = r.combined_risk_score || 0;
-                    const vc = isP ? 'var(--accent)' : 'var(--primary)';
+                    const vc = isP ? 'var(--accent)' : (isR ? 'var(--warning)' : 'var(--primary)');
+                    const vBg = isP ? 'var(--accent-dim)' : (isR ? 'rgba(245,158,11,0.15)' : 'var(--primary-dim)');
+                    const vLabel = isP ? 'PHISHING' : (isR ? 'RISKY' : 'SAFE');
                     const rc = risk > 66 ? 'var(--accent)' : risk > 33 ? 'var(--warning)' : 'var(--primary)';
                     return `<tr>
                         <td style="color:var(--text-muted);text-align:center">${i+1}</td>
@@ -598,8 +610,8 @@ function displayBulkResults(results) {
                             style="font-family:var(--font-mono);font-size:12px;color:var(--text-dim);text-decoration:none;display:block;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
                             title="${escapeHtml(r.url)}">${escapeHtml(r.url)}</a></td>
                         <td style="text-align:center">
-                            <span style="font-family:var(--font-heading);font-size:12px;font-weight:600;color:${vc};background:${isP ? 'var(--accent-dim)' : 'var(--primary-dim)'};padding:3px 10px;border-radius:5px">
-                                ${isP ? 'PHISHING' : 'SAFE'}
+                            <span style="font-family:var(--font-heading);font-size:12px;font-weight:600;color:${vc};background:${vBg};padding:3px 10px;border-radius:5px">
+                                ${vLabel}
                             </span>
                         </td>
                         <td style="text-align:center;font-family:var(--font-mono);font-size:13px;color:${mlPct > 50 ? 'var(--accent)' : 'var(--primary)'}">${mlPct}%</td>

@@ -6,6 +6,9 @@ SUSPICIOUS_TLDS = ['.tk', '.ml', '.ga', '.cf', '.gq', '.xyz', '.top', '.work', '
 TARGETED_BRANDS = ['paypal', 'apple', 'amazon', 'microsoft', 'google', 'facebook', 'netflix', 'bank', 'chase', 'wellsfargo', 'citibank', 'dropbox', 'linkedin', 'instagram', 'twitter', 'outlook', 'office365', 'icloud']
 SHORTENERS = ['bit.ly', 'tinyurl', 'goo.gl', 't.co', 'ow.ly', 'is.gd', 'buff.ly', 'adf.ly', 'bit.do']
 
+# Phishing path patterns (e.g., PayPal webscr, cgi-bin, cmd= in URL path)
+PHISHING_PATH_PATTERNS = ['cgi-bin', 'webscr', 'cmd=']
+
 
 def analyze_url(url):
     issues = []
@@ -70,9 +73,16 @@ def analyze_url(url):
         risk_score += 15
 
     path_lower = url_obj.path.lower()
+    url_lower_for_path = url.lower()
     if any(kw in path_lower for kw in ['login', 'signin', 'verify', 'secure', 'update']):
         issues.append({'severity': 'low', 'text': 'Contains sensitive action keywords in path'})
         risk_score += 10
+
+    for pattern in PHISHING_PATH_PATTERNS:
+        if pattern in path_lower or pattern in url_lower_for_path:
+            issues.append({'severity': 'high', 'text': f'Phishing URL pattern detected in path: {pattern}'})
+            risk_score += 30
+            break
 
     if len(url) > 100:
         issues.append({'severity': 'low', 'text': 'Unusually long URL'})

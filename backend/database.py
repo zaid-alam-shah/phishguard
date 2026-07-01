@@ -1,7 +1,15 @@
+import os
+import sys
 import sqlite3
 import json
 import time
-from config import config
+
+# Ensure project root is in sys.path for gunicorn/Docker compatibility
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+from backend.config import config
 
 
 def get_connection():

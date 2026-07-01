@@ -16,21 +16,48 @@ const tabUrlBtn = document.getElementById('tabUrlBtn');
 const clipboardBtn = document.getElementById('clipboardBtn');
 const clearBtn = document.getElementById('clearBtn');
 
+// ── Real-Time Protection Toggle ──
+const realtimeToggle = document.getElementById('realtimeToggle');
+const protectionStatus = document.getElementById('protectionStatus');
+
+function updateProtectionUI(enabled) {
+  realtimeToggle.checked = enabled;
+  protectionStatus.textContent = enabled ? 'ON' : 'OFF';
+  protectionStatus.className = `protection-status ${enabled ? 'active' : 'inactive'}`;
+}
+
+// Load saved state
+chrome.storage.local.get('realtimeProtection', (data) => {
+  updateProtectionUI(data.realtimeProtection === true);
+});
+
+// Save on toggle
+realtimeToggle.addEventListener('change', () => {
+  const enabled = realtimeToggle.checked;
+  chrome.storage.local.set({ realtimeProtection: enabled });
+  updateProtectionUI(enabled);
+});
+
+// ── Scan Logic ──
+
 function setLoading() {
   status.className = 'status loading';
-  statusContent.innerHTML = '<div class="risk-score">...</div><div class="verdict">Scanning...</div>';
+  statusContent.innerHTML = '<div class="verdict">Scanning...</div>';
   details.classList.remove('show');
   scanBtn.disabled = true;
 }
 
 function setResult(data) {
   scanBtn.disabled = false;
-  const isPhishing = data.final_verdict === 'phishing';
-  status.className = `status ${isPhishing ? 'phishing' : 'safe'}`;
+  const verdict = data.final_verdict || 'safe';
+  const isPhishing = verdict === 'phishing';
+  const isRisky = verdict === 'risky';
+  const statusClass = isPhishing ? 'phishing' : (isRisky ? 'risky' : 'safe');
+  status.className = `status ${statusClass}`;
   const issues = data.rule_based?.issues || [];
+  const verdictLabel = isPhishing ? '🔴 PHISHING DETECTED' : (isRisky ? '⚠️ RISKY' : '✓ SAFE');
   statusContent.innerHTML = `
-    <div class="risk-score">${data.combined_risk_score || 0}</div>
-    <div class="verdict">${isPhishing ? '⚠ PHISHING DETECTED' : '✓ SAFE'}</div>
+    <div class="verdict">${verdictLabel}</div>
     <div class="issues">${issues.slice(0, 3).map(i => '• ' + i.text).join('<br>')}</div>
   `;
 
@@ -95,11 +122,15 @@ async function loadHistory() {
     const scans = data.history || [];
     historyCount.textContent = `${data.count || 0}`;
     historyList.innerHTML = scans.map(s => {
-      const isPhish = s.ml_result === 'phishing' || (s.risk_score || 0) > 50;
+      const score = s.risk_score || 0;
+      const isPhish = score >= 60;
+      const isRisky = score >= 40 && score < 60;
+      const badgeClass = isPhish ? 'phishing' : (isRisky ? 'risky' : 'safe');
+      const badgeLabel = isPhish ? 'Phish' : (isRisky ? 'Risky' : 'Safe');
       const displayUrl = s.url ? s.url.substring(0, 40) + (s.url.length > 40 ? '...' : '') : 'unknown';
       return `<div class="history-item">
         <span class="hurl" title="${escapeHtml(s.url || '')}">${escapeHtml(displayUrl)}</span>
-        <span class="badge ${isPhish ? 'phishing' : 'safe'}">${isPhish ? 'Phish' : 'Safe'} ${s.risk_score || ''}</span>
+        <span class="badge ${badgeClass}">${badgeLabel} ${score || ''}</span>
       </div>`;
     }).join('');
   } catch (e) {}

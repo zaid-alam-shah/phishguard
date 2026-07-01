@@ -2,19 +2,33 @@
 
 **Advanced Phishing URL Detection System** — A final-year cybersecurity project by students at **Hamdard University, Karachi**.
 
-PhishGuard analyzes URLs using a **dual-detection approach**: rule-based heuristics (SSL, WHOIS, URL structure, brand keyword detection) combined with a **Random Forest ML model** (31 features) to classify URLs as **safe** or **phishing**.
+PhishGuard analyzes URLs using a **dual-detection approach**: rule-based heuristics (SSL, WHOIS, URL structure, brand keyword detection) combined with a **Random Forest ML model** (31 features) to classify URLs with a **3-tier verdict**: ✅ Safe, ⚡ Risky, 🛑 Phishing.
 
 ---
 
 ## ✨ Features
 
-- **Real-time URL Analysis** — Paste a URL and get instant results
-- **ML-Powered Detection** — Random Forest trained on 500K+ URLs
+### 🔍 Core Detection Engine
+- **ML-Powered Detection** — Random Forest trained on 500K+ URLs (92% accuracy)
 - **Rule-Based Engine** — SSL checks, WHOIS domain age, URL shortener unrolling, brand impersonation detection, suspicious TLD detection
-- **Security Chatbot** — Ask phishing/security questions via integrated chatbot
+- **3-Tier Verdict System** — URLs classified as **Safe** (<40), **Risky** (40-59), or **Phishing** (60+)
+- **Client-Side Pre-check** — Instant local URL analysis catches common phishing patterns BEFORE the API call (zero-delay warnings)
+
+### 🛡️ Chrome Extension — Real-Time Protection
+- **Auto-block phishing URLs** — Intercepts navigation before the page loads
+- **Standalone Warning Page** — Full-page warning with color-coded verdict bar (🔴 red for phishing, 🟠 orange for risky)
+- **Page Load Prevention** — The phishing URL **never loads** until the user explicitly clicks "Continue Anyway"
+- **"Continue Anyway" Bypass** — User-approved URLs are temporarily whitelisted (10-second window)
+- **Persistent Warning** — The warning page stays until the user makes a choice (no auto-dismiss)
+- **MV3 CSP Compliant** — Follows Manifest V3 best practices with external JS files
+
+### 🌐 Web Interface
 - **Dashboard & History** — Visual scan statistics, pie charts, scan history
 - **Bulk Scanning** — Scan up to 20 URLs at once
-- **Chrome Extension** — Right-click any link or selected text to scan instantly
+- **Security Chatbot** — Ask phishing/security questions via integrated AI chatbot
+- **Real-time URL Analysis** — Paste a URL and get instant results
+
+### 🐳 Deployment
 - **Docker Support** — One-command deployment
 
 ---
@@ -162,11 +176,54 @@ The extension communicates with the backend at `http://127.0.0.1:8080`. Make sur
 3. Click **Load unpacked**
 4. Select the `extension/` folder from this project
 
-### Step 3: Use the Extension
+### Step 3: Enable Real-Time Protection
+
+1. Click the PhishGuard icon in the toolbar
+2. Toggle **Real-Time Protection** ON 🛡️
+3. Now every URL you visit is automatically scanned
+
+### How Real-Time Protection Works
+
+```
+User clicks/enters a URL
+    ↓
+┌─────────────────────────────────────┐
+│ webNavigation.onBeforeNavigate fires │
+└─────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────┐
+│ Client-Side Pre-check (instant)     │
+│ ✓ Suspicious TLD?                   │
+│ ✓ Brand impersonation?              │
+│ ✓ Phishing keywords?                │
+│ ✓ HTTP (no SSL)?                    │
+└─────────────────────────────────────┘
+    ↓ Score ≥ 40?
+    ↓
+┌─────────────────────────────────────┐
+│ 🚫 PAGE LOAD BLOCKED               │
+│ Redirect to warning.html           │
+│ (Phishing URL NEVER loads)          │
+└─────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────┐
+│ User sees:                          │
+│ 🔴 PHISHING DETECTED  (red bar)    │
+│   OR                                │
+│ ⚠️ RISKY             (orange bar)  │
+│                                     │
+│ [🛑 Block — Go to Safety]          │
+│ [⚠️ Continue Anyway]               │
+└─────────────────────────────────────┘
+```
+
+### Extension Features
 
 - **Right-click** any link → **Scan URL with PhishGuard**
 - **Select text** containing a URL → **Scan URL with PhishGuard**
-- Click the extension icon in the toolbar to open the popup scanner
+- Click the extension icon to open the popup scanner
+- **Real-Time Protection** toggle in the popup
+- **Verdict-only display** — colored status bar shows Safe / Risky / Phishing (no score numbers)
 
 ---
 
@@ -180,7 +237,7 @@ The extension communicates with the backend at `http://127.0.0.1:8080`. Make sur
 4. View the result showing:
    - **ML Prediction** — phishing probability score
    - **Rule Analysis** — risk level with flagged issues
-   - **Combined Verdict** — final Safe / Phishing decision
+   - **Combined Verdict** — final Safe / Risky / Phishing decision
    - **URL Details** — protocol, domain, path, query params
    - **Flagged Issues** — specific security concerns found
 
@@ -193,7 +250,7 @@ The extension communicates with the backend at `http://127.0.0.1:8080`. Make sur
 
 ### View Dashboard
 
-- See scan distribution (safe vs phishing)
+- See scan distribution (safe, risky, phishing)
 - View total scans, phishing count, average risk score
 - Pie chart visualization
 
@@ -205,6 +262,22 @@ The extension communicates with the backend at `http://127.0.0.1:8080`. Make sur
    - "How to detect phishing emails?"
    - "How does PhishGuard work?"
    - "What is 2FA?"
+
+---
+
+## 📊 Risk Thresholds
+
+| Risk Score | Verdict | Color | Example |
+|-----------|---------|-------|---------|
+| **0-39%** | ✅ Safe | 🟢 Green | `google.com` → 19% |
+| **40-59%** | ⚡ Risky | 🟡 Orange | `maryhoffmann.com/hsbc/...` → 50% |
+| **60-100%** | 🛑 Phishing | 🔴 Red | `secure-paypal-login.xyz/webscr` → 100% |
+
+The combined score formula:
+```
+combined_risk_score = max(rule_score, ml_score)
+                   + boost (if 2+ high-severity flags)
+```
 
 ---
 
@@ -221,7 +294,7 @@ http://127.0.0.1:8080
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/` | Serves the frontend |
-| `GET` | `/health` | Server health check |
+| `GET` | `/api/health` | Server health check |
 | `POST` | `/predict` | Analyze a single URL |
 | `POST` | `/bulk-predict` | Analyze multiple URLs (max 20) |
 | `GET` | `/stats` | Get scan statistics |
@@ -272,7 +345,7 @@ curl -X POST http://127.0.0.1:8080/bulk-predict \
 ### Health Check
 
 ```bash
-curl http://127.0.0.1:8080/health
+curl http://127.0.0.1:8080/api/health
 ```
 
 ```json
@@ -361,11 +434,13 @@ phishguard/
 │   ├── results.html            # Bulk scan results
 │   ├── script.js               # Frontend logic
 │   └── style.css               # Dark theme styles
-├── extension/                  # Chrome extension
-│   ├── manifest.json           # Extension config
-│   ├── background.js           # Context menu handler
+├── extension/                  # Chrome extension (MV3)
+│   ├── manifest.json           # Extension config (MV3)
+│   ├── background.js           # Service worker with pre-check, API, blocking
 │   ├── popup.html              # Popup UI
-│   ├── popup.js                # Popup logic
+│   ├── popup.js                # Popup logic (verdict-only display)
+│   ├── warning.html            # Standalone warning page (no inline scripts)
+│   ├── warning.js              # Warning page logic (CSP-compliant)
 │   └── icons/                  # Extension icons
 ├── scripts/                    # Utility scripts
 │   ├── init_model.py
@@ -403,6 +478,14 @@ python backend/train_model.py
 
 - Make sure the backend is running on `http://127.0.0.1:8080`
 - The extension only works when the server is active
+
+### Extension shows "No tab with id" error
+
+This is harmless — it happens when a tab is closed before the API responds. Already handled with proper error handling in the latest version.
+
+### CSP errors in extension
+
+The extension is MV3-compliant with all scripts in external files. If you see CSP errors, reload the extension at `chrome://extensions/`.
 
 ### Dataset download failed
 
