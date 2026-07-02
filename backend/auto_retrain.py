@@ -85,6 +85,11 @@ def save_retrained_model(model, output_path, num_samples=0):
 
 
 def main():
+    # Safety check: only retrain if explicitly enabled in config
+    if not getattr(config, 'AUTO_RETRAIN_ENABLED', False):
+        logger.info('Auto-retrain is disabled in config. Enable with AUTO_RETRAIN_ENABLED=true')
+        return
+
     logger.info('=' * 50)
     logger.info('Auto-Retrain Pipeline Started')
     logger.info('=' * 50)

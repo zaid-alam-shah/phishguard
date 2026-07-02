@@ -10,27 +10,50 @@ logger = logging.getLogger(__name__)
 API_KEY_HASHES = set()
 
 try:
-    import sqlite3
-    from config import config
+    from backend.database import get_connection, _execute, USE_PG
+    from backend.config import config
+    import sys
+    import os
+    _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
 
     def init_api_keys_db():
-        conn = sqlite3.connect(config.DATABASE_PATH)
-        conn.execute('''CREATE TABLE IF NOT EXISTS api_keys (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            key_hash TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            last_used DATETIME,
-            is_active INTEGER DEFAULT 1
-        )''')
+        """Initialize the API keys table."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        if USE_PG:
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS api_keys (
+                    id SERIAL PRIMARY KEY,
+                    key_hash TEXT UNIQUE NOT NULL,
+                    name TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_used TIMESTAMP,
+                    is_active INTEGER DEFAULT 1
+                )
+            ''')
+        else:
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS api_keys (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    key_hash TEXT UNIQUE NOT NULL,
+                    name TEXT NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    last_used DATETIME,
+                    is_active INTEGER DEFAULT 1
+                )
+            ''')
         conn.commit()
         conn.close()
 
     def load_api_keys():
         global API_KEY_HASHES
         try:
-            conn = sqlite3.connect(config.DATABASE_PATH)
-            rows = conn.execute("SELECT key_hash FROM api_keys WHERE is_active=1").fetchall()
+            conn = get_connection()
+            cursor = conn.cursor()
+            _execute(cursor, "SELECT key_hash FROM api_keys WHERE is_active=1")
+            rows = cursor.fetchall()
             API_KEY_HASHES = set(row[0] for row in rows)
             conn.close()
             logger.info(f'Loaded {len(API_KEY_HASHES)} active API keys')
@@ -38,15 +61,20 @@ try:
             logger.error(f'Failed to load API keys: {e}')
 
     def save_api_key(key_hash, name):
-        conn = sqlite3.connect(config.DATABASE_PATH)
-        conn.execute("INSERT OR IGNORE INTO api_keys (key_hash, name) VALUES (?, ?)", (key_hash, name))
+        conn = get_connection()
+        cursor = conn.cursor()
+        if USE_PG:
+            _execute(cursor, "INSERT INTO api_keys (key_hash, name) VALUES (%s, %s) ON CONFLICT (key_hash) DO NOTHING", (key_hash, name))
+        else:
+            _execute(cursor, "INSERT OR IGNORE INTO api_keys (key_hash, name) VALUES (%s, %s)", (key_hash, name))
         conn.commit()
         conn.close()
         API_KEY_HASHES.add(key_hash)
 
     def remove_api_key(key_hash):
-        conn = sqlite3.connect(config.DATABASE_PATH)
-        conn.execute("UPDATE api_keys SET is_active=0 WHERE key_hash=?", (key_hash,))
+        conn = get_connection()
+        cursor = conn.cursor()
+        _execute(cursor, "UPDATE api_keys SET is_active=0 WHERE key_hash=%s", (key_hash,))
         conn.commit()
         conn.close()
         API_KEY_HASHES.discard(key_hash)

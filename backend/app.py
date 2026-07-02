@@ -48,11 +48,27 @@ RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX = 30
 
 ADMIN_API_KEY = os.getenv('ADMIN_API_KEY', secrets.token_hex(16))
-REQUIRE_API_KEY = os.getenv('REQUIRE_API_KEY', '').lower() in ('true', '1', 'yes')
+REQUIRE_API_KEY = config.REQUIRE_API_KEY
 
+# On first run, display the auto-generated admin key so the user can save it
 if not os.getenv('ADMIN_API_KEY'):
-    logger.warning('ADMIN_API_KEY not set — auto-generated (check server output on first run)')
-    logger.warning('Set ADMIN_API_KEY in .env for persistence')
+    logger.info('=' * 60)
+    logger.info('  FIRST-RUN SETUP: Admin API Key (save this — it will not be shown again)')
+    logger.info(f'  ADMIN_API_KEY={ADMIN_API_KEY}')
+    logger.info('  Set ADMIN_API_KEY in .env for persistence across restarts.')
+    logger.info('=' * 60)
+else:
+    logger.info(f'ADMIN_API_KEY loaded from .env (first 8 chars: {ADMIN_API_KEY[:8]}...)')
+
+if REQUIRE_API_KEY:
+    logger.info(f'API key authentication is ENABLED (REQUIRE_API_KEY=true)')
+else:
+    logger.warning('API key authentication is DISABLED (REQUIRE_API_KEY=false) — not recommended for production')
+
+if config.AUTO_RETRAIN_ENABLED:
+    logger.info('Auto-retrain is ENABLED — model will retrain every 24 hours from user scan data')
+else:
+    logger.info('Auto-retrain is DISABLED (default) — enable with AUTO_RETRAIN_ENABLED=true in .env')
 
 
 @app.after_request
@@ -417,12 +433,13 @@ def require_admin_key(f):
 @app.route('/api/admin/keys', methods=['GET'])
 @require_admin_key
 def list_api_keys():
-    import sqlite3
-    conn = sqlite3.connect(config.DATABASE_PATH)
-    cursor = conn.execute("SELECT id, name, created_at, last_used, is_active FROM api_keys ORDER BY created_at DESC")
+    from backend.database import get_connection, _execute
+    conn = get_connection()
+    cursor = conn.cursor()
+    _execute(cursor, "SELECT id, name, created_at, last_used, is_active FROM api_keys ORDER BY created_at DESC")
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
-    return jsonify({'keys': rows, 'admin_key': ADMIN_API_KEY[:8] + '...'})
+    return jsonify({'keys': rows})
 
 
 @app.route('/api/admin/keys', methods=['POST'])
@@ -485,22 +502,54 @@ def internal_error(e):
     return jsonify({'error': 'Internal server error'}), 500
 
 
-scheduler = BackgroundScheduler()
-scheduler.add_job(
-    func=auto_retrain.main,
-    trigger='interval',
-    hours=24,
-    id='auto_retrain',
-    name='Auto-retrain every 24 hours'
-)
-try:
-    scheduler.start()
-    logger.info('Auto-retrain scheduler started (every 24h)')
-except Exception as e:
-    logger.error(f'Scheduler start failed: {e}')
+# Auto-retrain scheduler — gated behind config flag (disabled by default)
+if config.AUTO_RETRAIN_ENABLED:
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        func=auto_retrain.main,
+        trigger='interval',
+        hours=24,
+        id='auto_retrain',
+        name='Auto-retrain every 24 hours'
+    )
+    try:
+        scheduler.start()
+        logger.info('Auto-retrain scheduler started (every 24h)')
+    except Exception as e:
+        logger.error(f'Scheduler start failed: {e}')
+else:
+    logger.info('Auto-retrain scheduler not started (disabled in config)')
+
+
+# HTTPS redirect middleware
+@app.before_request
+def enforce_https():
+    """Redirect HTTP to HTTPS when SSL is configured."""
+    if config.SSL_CERT_PATH and config.SSL_KEY_PATH:
+        if not request.is_secure:
+            url = request.url.replace('http://', 'https://', 1)
+            return '', 307, {'Location': url}
 
 
 if __name__ == '__main__':
-    logger.info(f'Starting PhishGuard API on {config.FLASK_HOST}:{config.FLASK_PORT}')
-    from waitress import serve
-    serve(app, host=config.FLASK_HOST, port=config.FLASK_PORT)
+    host = config.FLASK_HOST
+    port = config.FLASK_PORT
+    ssl_cert = config.SSL_CERT_PATH
+    ssl_key = config.SSL_KEY_PATH
+
+    if ssl_cert and ssl_key:
+        if os.path.exists(ssl_cert) and os.path.exists(ssl_key):
+            logger.info(f'Starting PhishGuard API with HTTPS on {host}:{port}')
+            logger.info(f'  SSL Cert: {ssl_cert}')
+            logger.info(f'  SSL Key:  {ssl_key}')
+            app.run(host=host, port=port, ssl_context=(ssl_cert, ssl_key), debug=config.FLASK_DEBUG)
+        else:
+            logger.warning(f'SSL cert/key files not found. Cert: {ssl_cert}, Key: {ssl_key}')
+            logger.warning(f'Falling back to HTTP on {host}:{port}')
+            from waitress import serve
+            serve(app, host=host, port=port)
+    else:
+        logger.info(f'Starting PhishGuard API on http://{host}:{port}')
+        logger.info(f'To enable HTTPS, set SSL_CERT_PATH and SSL_KEY_PATH in .env')
+        from waitress import serve
+        serve(app, host=host, port=port)
