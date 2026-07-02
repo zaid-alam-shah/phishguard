@@ -1,4 +1,55 @@
-const API_BASE = 'http://127.0.0.1:8080';
+let API_BASE = 'http://127.0.0.1:8080';
+
+// ── API Key Management ──
+// Load saved API_BASE from storage
+chrome.storage.local.get('apiBase', (data) => {
+  if (data.apiBase) API_BASE = data.apiBase;
+});
+
+// Listen for settings changes from popup
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.apiBase) {
+    API_BASE = changes.apiBase.newValue || API_BASE;
+  }
+});
+
+async function getApiKey() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get('apiKey', async (data) => {
+      if (data.apiKey) {
+        resolve(data.apiKey);
+        return;
+      }
+      // Fetch a new key
+      try {
+        const resp = await fetch(API_BASE + '/api/client-key');
+        if (resp.ok) {
+          const result = await resp.json();
+          const key = result.api_key;
+          chrome.storage.local.set({ apiKey: key });
+          resolve(key);
+        } else {
+          resolve(null);
+        }
+      } catch (e) {
+        console.warn('PhishGuard BG: Could not fetch API key', e);
+        resolve(null);
+      }
+    });
+  });
+}
+
+async function apiFetch(url, options = {}) {
+  options.headers = options.headers || {};
+  if (!options.headers['Content-Type']) {
+    options.headers['Content-Type'] = 'application/json';
+  }
+  const key = await getApiKey();
+  if (key) {
+    options.headers['Authorization'] = 'Bearer ' + key;
+  }
+  return fetch(url, options);
+}
 
 // ── User-approved URLs (bypass list) ──
 // URLs that the user clicked "Continue Anyway" on — skip protection for these.
@@ -175,11 +226,8 @@ async function checkUrl(tabId, url) {
   if (preCheck.score >= 40) {
     // Show warning IMMEDIATELY from local check
     injectWarningModal(tabId, url, preCheck.score, preCheck.flags);
-    // Still do the API call in background for a more accurate score
-    // Still do the API call in background for a more accurate score
-    fetch(`${API_BASE}/predict`, {
+    apiFetch(`${API_BASE}/predict`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url })
     }).then(resp => resp.json()).then(data => {
       const apiScore = data.combined_risk_score || preCheck.score;
@@ -195,9 +243,8 @@ async function checkUrl(tabId, url) {
 
   // Step 2: Full API check for borderline URLs
   try {
-    const resp = await fetch(`${API_BASE}/predict`, {
+    const resp = await apiFetch(`${API_BASE}/predict`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url })
     });
     if (!resp.ok) return;

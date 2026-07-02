@@ -459,6 +459,20 @@ def revoke_api_key(key_hash):
     return jsonify({'message': 'API key revoked'})
 
 
+@app.route('/api/client-key', methods=['GET'])
+def client_key():
+    """Generate a session API key for frontend/extension clients.
+    Heavily rate-limited to prevent abuse (1 per IP per 60s).
+    """
+    client_ip = request.remote_addr or 'unknown'
+    rate_limit_key = f"ckey_{client_ip}"
+    if check_rate_limit(rate_limit_key, 60, 1):
+        return jsonify({'error': 'Rate limited. Please wait before requesting a new key.'}), 429
+
+    raw_key = generate_api_key(f"client-{client_ip}")
+    return jsonify({'api_key': raw_key, 'message': 'Store this key for the session.'})
+
+
 @app.route('/api/health', methods=['GET'])
 def health():
     return jsonify({

@@ -1,5 +1,43 @@
 const API_BASE = '';
 
+// ── API Key Management ──
+// Fetches a client API key from the backend on first use and caches it.
+let _cachedApiKey = null;
+
+async function getApiKey() {
+    if (_cachedApiKey) return _cachedApiKey;
+    let key = sessionStorage.getItem('pg_api_key');
+    if (key) {
+        _cachedApiKey = key;
+        return key;
+    }
+    try {
+        const resp = await fetch('/api/client-key');
+        if (resp.ok) {
+            const data = await resp.json();
+            key = data.api_key;
+            _cachedApiKey = key;
+            sessionStorage.setItem('pg_api_key', key);
+        }
+    } catch (e) {
+        console.warn('Could not fetch API key, requests may fail:', e);
+    }
+    return key;
+}
+
+async function apiFetch(url, options = {}) {
+    options.headers = options.headers || {};
+    if (!options.headers['Content-Type']) {
+        options.headers['Content-Type'] = 'application/json';
+    }
+    const key = await getApiKey();
+    if (key) {
+        options.headers['Authorization'] = 'Bearer ' + key;
+    }
+    return fetch(url, options);
+}
+
+
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initAnalyze();
@@ -123,9 +161,8 @@ async function analyzeUrl(url) {
     btn.disabled = true;
 
     try {
-        const response = await fetch(API_BASE + '/predict', {
+        const response = await apiFetch(API_BASE + '/predict', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: url.trim() })
         });
 
@@ -170,9 +207,8 @@ async function analyzeBulkUrls() {
     showLoading('BULK SCANNING', 'Scanning ' + urls.length + ' URLs...', true);
 
     try {
-        const response = await fetch(API_BASE + '/bulk-predict', {
+        const response = await apiFetch(API_BASE + '/bulk-predict', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ urls: urls })
         });
 
@@ -316,7 +352,7 @@ function initHistory() {
     document.getElementById('clearHistory').addEventListener('click', async () => {
         if (!confirm('Clear all scan history?')) return;
         try {
-            await fetch(API_BASE + '/history', { method: 'DELETE' });
+            await apiFetch(API_BASE + '/history', { method: 'DELETE' });
             loadHistory();
             loadStats();
         } catch (err) {
@@ -328,7 +364,7 @@ function initHistory() {
 async function loadHistory() {
     const tbody = document.getElementById('historyBody');
     try {
-        const response = await fetch(API_BASE + '/history?limit=50');
+        const response = await apiFetch(API_BASE + '/history?limit=50');
         const data = await response.json();
         const scans = data.history || [];
 
@@ -367,7 +403,7 @@ function initDashboard() {
 
 async function loadStats() {
     try {
-        const response = await fetch(API_BASE + '/stats');
+        const response = await apiFetch(API_BASE + '/stats');
         const stats = await response.json();
 
         const total = stats.total_scans || 0;
@@ -470,9 +506,8 @@ async function sendChatMessage(message) {
     messages.scrollTop = messages.scrollHeight;
 
     try {
-        const response = await fetch(API_BASE + '/chatbot', {
+        const response = await apiFetch(API_BASE + '/chatbot', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: message })
         });
         const data = await response.json();
