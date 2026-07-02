@@ -1,15 +1,24 @@
-let API_BASE = 'http://127.0.0.1:8080';
+const DEFAULT_API_BASE = 'http://127.0.0.1:8080';
 
-// ── API Key Management ──
-// Load saved API_BASE from storage
+// ── API Base URL Resolution ──
+// Reads from storage synchronously-ish. Returns the saved URL or default.
+// Avoids the race condition of using a module-level variable before storage is read.
+function getApiBase() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get('apiBase', (data) => {
+      resolve(data.apiBase || DEFAULT_API_BASE);
+    });
+  });
+}
+
+// Also cache it for synchronous use in webNavigation listener
+let API_BASE = DEFAULT_API_BASE;
 chrome.storage.local.get('apiBase', (data) => {
   if (data.apiBase) API_BASE = data.apiBase;
 });
-
-// Listen for settings changes from popup
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.apiBase) {
-    API_BASE = changes.apiBase.newValue || API_BASE;
+    API_BASE = changes.apiBase.newValue || DEFAULT_API_BASE;
   }
 });
 
@@ -20,9 +29,10 @@ async function getApiKey() {
         resolve(data.apiKey);
         return;
       }
-      // Fetch a new key
+      // Fetch a new key using the correct API_BASE
+      const base = await getApiBase();
       try {
-        const resp = await fetch(API_BASE + '/api/client-key');
+        const resp = await fetch(base + '/api/client-key');
         if (resp.ok) {
           const result = await resp.json();
           const key = result.api_key;
@@ -48,6 +58,7 @@ async function apiFetch(url, options = {}) {
   if (key) {
     options.headers['Authorization'] = 'Bearer ' + key;
   }
+  // Ensure we use the correct API_BASE even if the url param is relative
   return fetch(url, options);
 }
 
@@ -219,14 +230,14 @@ async function checkUrl(tabId, url) {
       injectWarningModal(tabId, url, cached.score, cached.issues);
     }
     return;
-  }
-
-  // Step 1: INSTANT local pre-check (no API call needed)
+  }    // Step 1: INSTANT local pre-check (no API call needed)
   const preCheck = quickPreCheck(url);
   if (preCheck.score >= 40) {
     // Show warning IMMEDIATELY from local check
     injectWarningModal(tabId, url, preCheck.score, preCheck.flags);
-    apiFetch(`${API_BASE}/predict`, {
+    // Use getApiBase() to ensure correct URL is used
+    const base = await getApiBase();
+    apiFetch(`${base}/predict`, {
       method: 'POST',
       body: JSON.stringify({ url })
     }).then(resp => resp.json()).then(data => {
@@ -243,7 +254,8 @@ async function checkUrl(tabId, url) {
 
   // Step 2: Full API check for borderline URLs
   try {
-    const resp = await apiFetch(`${API_BASE}/predict`, {
+    const base = await getApiBase();
+    const resp = await apiFetch(`${base}/predict`, {
       method: 'POST',
       body: JSON.stringify({ url })
     });
