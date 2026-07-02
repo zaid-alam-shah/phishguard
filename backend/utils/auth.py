@@ -98,14 +98,35 @@ except Exception as e:
 def generate_api_key(name):
     raw_key = 'pg_' + secrets.token_hex(24)
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-    save_api_key(key_hash, name)
+    try:
+        save_api_key(key_hash, name)
+    except Exception as e:
+        logger.error(f'Failed to save API key to DB for "{name}": {e}. Using in-memory only.')
+        # Ensure key is always valid for the current session even if DB write fails
+        API_KEY_HASHES.add(key_hash)
     logger.info(f'Generated API key for: {name}')
     return raw_key
 
 
 def validate_api_key(raw_key):
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-    return key_hash in API_KEY_HASHES
+    # Fast path: check in-memory set
+    if key_hash in API_KEY_HASHES:
+        return True
+    # Fallback: check database directly (handles gunicorn multi-worker where
+    # each worker has its own in-memory set — the key might have been created
+    # by another worker and is only in the DB)
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        _execute(cursor, "SELECT 1 FROM api_keys WHERE key_hash=%s AND is_active=1", (key_hash,))
+        exists = cursor.fetchone() is not None
+        conn.close()
+        if exists:
+            API_KEY_HASHES.add(key_hash)  # Cache for next time
+        return exists
+    except Exception:
+        return False
 
 
 def require_api_key(f):
