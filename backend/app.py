@@ -462,11 +462,11 @@ def revoke_api_key(key_hash):
 @app.route('/api/client-key', methods=['GET'])
 def client_key():
     """Generate a session API key for frontend/extension clients.
-    Heavily rate-limited to prevent abuse (1 per IP per 60s).
+    Rate-limited to 10 per IP per 60s (generous enough for incognito tabs).
     """
     client_ip = request.remote_addr or 'unknown'
     rate_limit_key = f"ckey_{client_ip}"
-    if check_rate_limit(rate_limit_key, 60, 1):
+    if check_rate_limit(rate_limit_key, 60, 10):
         return jsonify({'error': 'Rate limited. Please wait before requesting a new key.'}), 429
 
     raw_key = generate_api_key(f"client-{client_ip}")
