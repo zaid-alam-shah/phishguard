@@ -4,32 +4,46 @@
 
 PhishGuard analyzes URLs using a **dual-detection approach**: rule-based heuristics (SSL, WHOIS, URL structure, brand keyword detection) combined with a **Random Forest ML model** (31 features) to classify URLs with a **3-tier verdict**: ✅ Safe, ⚡ Risky, 🛑 Phishing.
 
+🌐 **Live Demo:** [https://phishguard.onrender.com](https://phishguard.onrender.com)
+
 ---
 
 ## ✨ Features
 
 ### 🔍 Core Detection Engine
 - **ML-Powered Detection** — Random Forest trained on 500K+ URLs (92% accuracy)
-- **Rule-Based Engine** — SSL checks, WHOIS domain age, URL shortener unrolling, brand impersonation detection, suspicious TLD detection
+- **Rule-Based Engine** — SSL checks, WHOIS domain age, URL shortener unrolling (with **SSRF protection** 🔒), brand impersonation detection, suspicious TLD detection
 - **3-Tier Verdict System** — URLs classified as **Safe** (<40), **Risky** (40-59), or **Phishing** (60+)
 - **Client-Side Pre-check** — Instant local URL analysis catches common phishing patterns BEFORE the API call (zero-delay warnings)
+- **Bulk Scanning** — Scan up to 20 URLs at once with parallel processing
 
 ### 🛡️ Chrome Extension — Real-Time Protection
 - **Auto-block phishing URLs** — Intercepts navigation before the page loads
-- **Standalone Warning Page** — Full-page warning with color-coded verdict bar (🔴 red for phishing, 🟠 orange for risky)
+- **Standalone Warning Page** — Full-page warning with color-coded verdict bar
 - **Page Load Prevention** — The phishing URL **never loads** until the user explicitly clicks "Continue Anyway"
 - **"Continue Anyway" Bypass** — User-approved URLs are temporarily whitelisted (10-second window)
-- **Persistent Warning** — The warning page stays until the user makes a choice (no auto-dismiss)
-- **MV3 CSP Compliant** — Follows Manifest V3 best practices with external JS files
+- **Settings Panel** — Configurable API Server URL (switch between local & cloud)
+- **Auto API Key Provisioning** — Extension automatically fetches a session API key from the server
+
+### 🔐 Security Hardening
+- **API Key Authentication** — All endpoints require a valid API key by default (`REQUIRE_API_KEY=true`)
+- **Auto Key Provisioning** — Frontend & extension auto-fetch keys via `/api/client-key` (rate-limited)
+- **Admin Key Management** — Create, list & revoke API keys via admin endpoints
+- **SSRF Protection** — URL shortener resolver validates resolved IPs, blocks private/internal networks
+- **Rate Limiting** — 30 requests per 60 seconds per IP
+- **Security Headers** — CSP, X-Frame-Options, X-Content-Type-Options, etc.
 
 ### 🌐 Web Interface
 - **Dashboard & History** — Visual scan statistics, pie charts, scan history
-- **Bulk Scanning** — Scan up to 20 URLs at once
-- **Security Chatbot** — Ask phishing/security questions via integrated AI chatbot
+- **Security Chatbot** — Ask phishing/security questions via integrated AI chatbot (powered by OpenRouter)
 - **Real-time URL Analysis** — Paste a URL and get instant results
+- **Dark Theme** — Modern dark UI with gradient accents
 
-### 🐳 Deployment
-- **Docker Support** — One-command deployment
+### 🚀 Deployment Options
+- **Local** — Run with Python directly (SQLite)
+- **Docker** — One-command deployment with optional nginx reverse proxy
+- **Render** — Free cloud hosting with one-click deploy via `render.yaml`
+- **PostgreSQL** — Optional production database (set `DATABASE_URL`)
 
 ---
 
@@ -57,7 +71,7 @@ cd phishguard
 ### Step 2: Create Virtual Environment
 
 <details>
-<summary><b>Windows</b></summary>
+<summary><b>Windows (PowerShell)</b></summary>
 
 ```powershell
 python -m venv venv
@@ -80,20 +94,26 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Step 4: Configure Environment Variables
+### Step 4: Configure Environment (Optional)
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` in any text editor and configure:
+The server works **out of the box without a `.env` file**. If you do create one:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SECRET_KEY` | ✅ | Set a random string for Flask sessions |
-| `OPENROUTER_API_KEY` | ❌ | Needed only for the chatbot feature |
-| `ADMIN_API_KEY` | ❌ | Needed if `REQUIRE_API_KEY=true` |
-| `REQUIRE_API_KEY` | ❌ | Set to `true` to enforce API authentication |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REQUIRE_API_KEY` | `true` | Require API key for endpoints (frontend auto-fetches keys) |
+| `SECRET_KEY` | *(auto)* | Flask session secret key |
+| `ADMIN_API_KEY` | *(auto)* | Admin key (printed on first server start) |
+| `OPENROUTER_API_KEY` | — | API key for chatbot (get from [openrouter.ai](https://openrouter.ai)) |
+| `DATABASE_URL` | — | PostgreSQL connection string (omit for SQLite) |
+| `SSL_CERT_PATH` | — | Path to SSL certificate (for HTTPS) |
+| `SSL_KEY_PATH` | — | Path to SSL key (for HTTPS) |
+| `AUTO_RETRAIN_ENABLED` | `false` | Enable 24-hour model auto-retraining |
+
+> **Note:** When `REQUIRE_API_KEY=true` (default), the frontend and extension automatically fetch API keys via `/api/client-key`. No manual key setup needed for normal use.
 
 ### Step 5: Download Dataset
 
@@ -153,7 +173,13 @@ docker-compose up -d
 
 The app will be available at **http://localhost:8080**.
 
-> **Note:** Set `REQUIRE_API_KEY=true` and provide `ADMIN_API_KEY` in Docker environment for production use. The Dockerfile defaults to `REQUIRE_API_KEY=true` for security.
+### With nginx Reverse Proxy (HTTPS)
+
+```bash
+# Uncomment the nginx service in docker-compose.yml, then:
+docker-compose up -d
+# Access at https://localhost
+```
 
 ### Stop Docker
 
@@ -163,11 +189,46 @@ docker-compose down
 
 ---
 
+## ☁️ Deploy to Render (Free Hosting)
+
+### Option A — One-Click Deploy (render.yaml)
+
+1. Push your repo to GitHub
+2. Go to [Render Dashboard](https://dashboard.render.com) → **Blueprints**
+3. Connect your repo — Render auto-detects `render.yaml`
+4. Click **Apply** — everything is pre-configured
+
+### Option B — Manual Web Service
+
+1. Create a **Web Service** on Render
+2. Connect your GitHub repo
+3. Settings:
+   - **Runtime:** Python 3
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `gunicorn backend.app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120`
+   - **Plan:** Free
+4. Add Environment Variables:
+   - `PYTHON_VERSION`: `3.11.0`
+   - `FLASK_HOST`: `0.0.0.0`
+   - `SECRET_KEY`: (auto-generate)
+   - `ADMIN_API_KEY`: (auto-generate)
+5. Deploy!
+
+> **Note on Render Free Tier:** SQLite data is ephemeral (lost on restart). For persistent data, add a free PostgreSQL database from [Supabase](https://supabase.com) and set `DATABASE_URL`.
+
+### After Deploying
+
+1. Open your Render URL (e.g., `https://phishguard.onrender.com`)
+2. The frontend auto-fetches an API key — scanning works immediately
+3. For the Chrome extension, go to **Settings** → change **API Server URL** to your Render URL
+
+---
+
 ## 🧩 Chrome Extension Setup
 
 ### Step 1: Ensure Backend is Running
 
-The extension communicates with the backend at `http://127.0.0.1:8080`. Make sure the server is running first.
+The extension communicates with the backend. Make sure the server is running first (either locally or on Render).
 
 ### Step 2: Load the Extension
 
@@ -176,7 +237,15 @@ The extension communicates with the backend at `http://127.0.0.1:8080`. Make sur
 3. Click **Load unpacked**
 4. Select the `extension/` folder from this project
 
-### Step 3: Enable Real-Time Protection
+### Step 3: Configure for Cloud (if using Render)
+
+1. Click the PhishGuard icon in the toolbar
+2. Click **⚙️ Settings** at the bottom
+3. Change **API Server URL** from `http://127.0.0.1:8080` to your Render URL (e.g., `https://phishguard.onrender.com`)
+4. Click **Save**, then **🔄 Refresh API Key**
+5. Connection status should show ✅ Connected
+
+### Step 4: Enable Real-Time Protection
 
 1. Click the PhishGuard icon in the toolbar
 2. Toggle **Real-Time Protection** ON 🛡️
@@ -223,7 +292,7 @@ User clicks/enters a URL
 - **Select text** containing a URL → **Scan URL with PhishGuard**
 - Click the extension icon to open the popup scanner
 - **Real-Time Protection** toggle in the popup
-- **Verdict-only display** — colored status bar shows Safe / Risky / Phishing (no score numbers)
+- **Settings panel** — API Server URL, connection status, key refresh
 
 ---
 
@@ -231,7 +300,7 @@ User clicks/enters a URL
 
 ### Scan a Single URL
 
-1. Open the app at **http://127.0.0.1:8080**
+1. Open the app at **http://127.0.0.1:8080** (or your Render URL)
 2. Paste a URL in the input field
 3. Click **Scan URL** (or press Enter)
 4. View the result showing:
@@ -286,21 +355,49 @@ combined_risk_score = max(rule_score, ml_score)
 ### Base URL
 
 ```
-http://127.0.0.1:8080
+Local:   http://127.0.0.1:8080
+Render:  https://phishguard.onrender.com
+```
+
+### Authentication
+
+When `REQUIRE_API_KEY=true` (default), all `/predict` and `/bulk-predict` endpoints require authentication.
+
+**Method 1 — Auto Key (Frontend):** The frontend automatically fetches a session key via `/api/client-key`.
+
+**Method 2 — Bearer Token:**
+```bash
+curl -X POST https://phishguard.onrender.com/predict \
+  -H "Authorization: Bearer <your-api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com"}'
+```
+
+**Method 3 — Query Parameter:**
+```bash
+curl -X POST "https://phishguard.onrender.com/predict?api_key=<your-api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com"}'
 ```
 
 ### Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | Serves the frontend |
-| `GET` | `/api/health` | Server health check |
-| `POST` | `/predict` | Analyze a single URL |
-| `POST` | `/bulk-predict` | Analyze multiple URLs (max 20) |
-| `GET` | `/stats` | Get scan statistics |
-| `GET` | `/history` | Get scan history (`?limit=N`) |
-| `DELETE` | `/history` | Clear scan history |
-| `POST` | `/chatbot` | Ask the security chatbot |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/` | — | Serves the frontend |
+| `GET` | `/api/health` | — | Server health check |
+| `GET` | `/api/client-key` | Rate-limited | Get a session API key (for frontend/extension) |
+| `POST` | `/predict` | ✅ API Key | Analyze a single URL |
+| `POST` | `/bulk-predict` | ✅ API Key | Analyze multiple URLs (max 20) |
+| `GET` | `/stats` | — | Get scan statistics |
+| `GET` | `/history` | — | Get scan history (`?limit=N`) |
+| `DELETE` | `/history` | — | Clear scan history |
+| `POST` | `/chatbot` | — | Ask the security chatbot |
+| `GET` | `/api/admin/keys` | 🔑 Admin Key | List all API keys |
+| `POST` | `/api/admin/keys` | 🔑 Admin Key | Create a new API key |
+| `DELETE` | `/api/admin/keys/<hash>` | 🔑 Admin Key | Revoke an API key |
+
+> **Admin endpoints** require `X-Admin-Key` header with the admin key (printed on first server start or set in `.env`).
 
 ### Predict a Single URL
 
@@ -342,6 +439,28 @@ curl -X POST http://127.0.0.1:8080/bulk-predict \
   -d '{"urls": ["https://google.com", "http://suspicious.tk/login"]}'
 ```
 
+### Get a Client API Key
+
+```bash
+curl http://127.0.0.1:8080/api/client-key
+```
+
+```json
+{
+  "api_key": "phg_abc123...",
+  "message": "Store this key for the session."
+}
+```
+
+### Admin: Create API Key
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/admin/keys \
+  -H "X-Admin-Key: <your-admin-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-app-key"}'
+```
+
 ### Health Check
 
 ```bash
@@ -369,9 +488,14 @@ All settings are managed through the `.env` file:
 | `FLASK_DEBUG` | `False` | Enable debug mode |
 | `SECRET_KEY` | *(auto)* | Flask session secret key |
 | `DATABASE_PATH` | `backend/phishguard.db` | SQLite database path |
-| `REQUIRE_API_KEY` | `false` | Require API key for endpoints |
+| `DATABASE_URL` | — | PostgreSQL connection string (for Render/cloud) |
+| `REQUIRE_API_KEY` | `true` | Require API key for endpoints ⚠️ |
 | `ADMIN_API_KEY` | *(auto)* | Admin key for managing API keys |
 | `OPENROUTER_API_KEY` | — | API key for chatbot (get from [openrouter.ai](https://openrouter.ai)) |
+| `CORS_ALLOWED_ORIGINS` | `localhost` | Comma-separated allowed origins |
+| `SSL_CERT_PATH` | — | Path to SSL cert (for HTTPS) |
+| `SSL_KEY_PATH` | — | Path to SSL key (for HTTPS) |
+| `AUTO_RETRAIN_ENABLED` | `false` | Enable 24-hour model retraining |
 
 ---
 
@@ -409,9 +533,9 @@ python backend/train_model.py
 ```
 phishguard/
 ├── backend/                    # Flask API server
-│   ├── app.py                  # Routes & server logic
-│   ├── config.py               # Configuration loader
-│   ├── database.py             # SQLite operations
+│   ├── app.py                  # Routes & server logic (HTTPS, auth, CORS)
+│   ├── config.py               # Configuration loader (env vars)
+│   ├── database.py             # SQLite & PostgreSQL support
 │   ├── train_model.py          # ML training pipeline
 │   ├── auto_retrain.py         # 24-hour retraining scheduler
 │   ├── phishing_model.pkl      # Trained ML model (generated)
@@ -419,42 +543,45 @@ phishguard/
 │   ├── models/
 │   │   └── detector.py         # ML model loader
 │   └── utils/
+│       ├── auth.py             # API key auth (generate, validate, manage)
 │       ├── feature_extractor.py    # 31-feature extraction
 │       ├── rule_analyzer.py        # Rule-based heuristics
 │       ├── ssl_checker.py          # SSL certificate validation
 │       ├── whois_checker.py        # WHOIS lookup
-│       ├── unshortener.py          # URL shortener resolver
+│       ├── unshortener.py          # URL shortener resolver (SSRF protected)
 │       ├── validators.py           # URL validation
-│       └── auth.py                 # JWT authentication
+│       └── __init__.py
 ├── frontend/                   # Web UI (served by Flask)
 │   ├── index.html              # Main scanner page
-│   ├── about.html              # About page
-│   ├── contact.html            # Contact form
-│   ├── terms.html              # Terms & conditions
+│   ├── about.html, contact.html, terms.html
 │   ├── results.html            # Bulk scan results
-│   ├── script.js               # Frontend logic
+│   ├── script.js               # Frontend logic (auto API key, auth headers)
 │   └── style.css               # Dark theme styles
 ├── extension/                  # Chrome extension (MV3)
-│   ├── manifest.json           # Extension config (MV3)
-│   ├── background.js           # Service worker with pre-check, API, blocking
-│   ├── popup.html              # Popup UI
-│   ├── popup.js                # Popup logic (verdict-only display)
-│   ├── warning.html            # Standalone warning page (no inline scripts)
-│   ├── warning.js              # Warning page logic (CSP-compliant)
-│   └── icons/                  # Extension icons
-├── scripts/                    # Utility scripts
-│   ├── init_model.py
-│   ├── add_safe_urls.py
-│   ├── retrain.py
-│   └── retrain.bat
+│   ├── manifest.json           # Extension config
+│   ├── background.js           # Service worker (pre-check, API, blocking)
+│   ├── popup.html              # Popup UI (settings panel)
+│   ├── popup.js                # Popup logic (API key mgmt, settings)
+│   ├── warning.html            # Standalone warning page
+│   └── warning.js              # Warning page logic
+├── scripts/
+│   ├── init_model.py, add_safe_urls.py, retrain.py, retrain.bat
+│   ├── generate_certs.bat      # Generate self-signed SSL certs (Windows)
+│   └── generate_certs.sh       # Generate self-signed SSL certs (Linux/macOS)
+├── nginx/
+│   └── nginx.conf              # Production reverse proxy config
 ├── data/
 │   └── phishing_site_urls.csv  # Dataset (not included)
-├── docs/                       # Documentation
+├── docs/                       # Documentation & FYP presentation
 ├── Dockerfile
-├── docker-compose.yml
+├── docker-compose.yml          # With optional nginx service
+├── Procfile                    # Render web service start command
+├── render.yaml                 # One-click Render deploy config
 ├── requirements.txt
 ├── .env.example                # Environment template
-└── .gitignore
+├── .gitignore
+├── LICENSE
+└── README.md
 ```
 
 ---
@@ -477,15 +604,22 @@ python backend/train_model.py
 ### Extension can't connect
 
 - Make sure the backend is running on `http://127.0.0.1:8080`
-- The extension only works when the server is active
+- If using Render, update the **API Server URL** in extension Settings
+- Click **Refresh API Key** after changing the URL
 
-### Extension shows "No tab with id" error
+### Extension shows "Valid API key required"
 
-This is harmless — it happens when a tab is closed before the API responds. Already handled with proper error handling in the latest version.
+The server has `REQUIRE_API_KEY=true` but the extension hasn't fetched a key yet. Either:
+- Click **🔄 Refresh API Key** in extension Settings
+- Or set `REQUIRE_API_KEY=false` in your `.env` file
 
-### CSP errors in extension
+### Extension shows "Cannot connect to PhishGuard API"
 
-The extension is MV3-compliant with all scripts in external files. If you see CSP errors, reload the extension at `chrome://extensions/`.
+The API Server URL in extension Settings is wrong. Update it to point to your server.
+
+### "No tab with id" error (harmless)
+
+This happens when a tab is closed before the API responds. Already handled with proper error handling.
 
 ### Dataset download failed
 
