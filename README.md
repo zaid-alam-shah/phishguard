@@ -6,7 +6,7 @@ PhishGuard analyzes URLs using a **dual-detection approach**: rule-based heurist
 
 ✅ Safe, ⚡ Risky, 🛑 Phishing.
 
-🌐 **Live Demo:** [PhishGuard — Real-Time Phishing Detection System](https://phishguard-pz28.onrender.com)
+🌐 **Live Demo:** [https://phishguard-pz28.onrender.com](https://phishguard-pz28.onrender.com)
 
 ---
 
@@ -17,7 +17,7 @@ PhishGuard analyzes URLs using a **dual-detection approach**: rule-based heurist
 - **Rule-Based Engine** — SSL checks, WHOIS domain age, URL shortener unrolling (with **SSRF protection** 🔒), brand impersonation detection, suspicious TLD detection
 - **3-Tier Verdict System** — URLs classified as **Safe** (<40), **Risky** (40-59), or **Phishing** (60+)
 - **Client-Side Pre-check** — Instant local URL analysis catches common phishing patterns BEFORE the API call (zero-delay warnings)
-- **Bulk Scanning** — Scan up to 20 URLs at once with parallel processing
+- **Code Deduplication** — Shared URL scan logic (`_run_url_scan`) used by both single and bulk prediction endpoints
 
 ### 🛡️ Chrome Extension — Real-Time Protection
 - **Auto-block phishing URLs** — Intercepts navigation before the page loads
@@ -34,11 +34,13 @@ PhishGuard analyzes URLs using a **dual-detection approach**: rule-based heurist
 - **SSRF Protection** — URL shortener resolver validates resolved IPs, blocks private/internal networks
 - **Rate Limiting** — 30 requests per 60 seconds per IP
 - **Security Headers** — CSP, X-Frame-Options, X-Content-Type-Options, etc.
+- **Thread-Safe Caches** — SSL and WHOIS caches use proper locking for concurrent requests
 
 ### 🌐 Web Interface
 - **Dashboard & History** — Visual scan statistics, pie charts, scan history
-- **Security Chatbot** — Ask phishing/security questions via integrated AI chatbot (powered by OpenRouter)
+- **Offline Security Chatbot** — FAQ-based security assistant with 12 predefined topics (no API key required)
 - **Real-time URL Analysis** — Paste a URL and get instant results
+- **Bulk Scanning** — Scan up to 20 URLs at once with parallel processing
 - **Dark Theme** — Modern dark UI with gradient accents
 
 ### 🚀 Deployment Options
@@ -109,7 +111,6 @@ The server works **out of the box without a `.env` file**. If you do create one:
 | `REQUIRE_API_KEY` | `true` | Require API key for endpoints (frontend auto-fetches keys) |
 | `SECRET_KEY` | *(auto)* | Flask session secret key |
 | `ADMIN_API_KEY` | *(auto)* | Admin key (printed on first server start) |
-| `OPENROUTER_API_KEY` | — | API key for chatbot (get from [openrouter.ai](https://openrouter.ai)) |
 | `DATABASE_URL` | — | PostgreSQL connection string (omit for SQLite) |
 | `SSL_CERT_PATH` | — | Path to SSL certificate (for HTTPS) |
 | `SSL_KEY_PATH` | — | Path to SSL key (for HTTPS) |
@@ -328,11 +329,16 @@ User clicks/enters a URL
 ### Use the Security Chatbot
 
 1. Go to the **AI Security Assistant** tab
-2. Ask questions like:
+2. Ask questions about phishing and cybersecurity — no API key required
+3. Questions you can ask:
    - "What is phishing?"
    - "How to detect phishing emails?"
    - "How does PhishGuard work?"
    - "What is 2FA?"
+   - "What is ransomware?"
+   - "How to stay safe online?"
+   - "How to report phishing?"
+4. The chatbot runs entirely offline with predefined FAQ answers — no external API calls needed
 
 ---
 
@@ -394,7 +400,7 @@ curl -X POST "https://phishguard.onrender.com/predict?api_key=<your-api-key>" \
 | `GET` | `/stats` | — | Get scan statistics |
 | `GET` | `/history` | — | Get scan history (`?limit=N`) |
 | `DELETE` | `/history` | — | Clear scan history |
-| `POST` | `/chatbot` | — | Ask the security chatbot |
+| `POST` | `/chatbot` | — | Ask the security chatbot (offline FAQ, no API key needed) |
 | `GET` | `/api/admin/keys` | 🔑 Admin Key | List all API keys |
 | `POST` | `/api/admin/keys` | 🔑 Admin Key | Create a new API key |
 | `DELETE` | `/api/admin/keys/<hash>` | 🔑 Admin Key | Revoke an API key |
@@ -493,7 +499,6 @@ All settings are managed through the `.env` file:
 | `DATABASE_URL` | — | PostgreSQL connection string (for Render/cloud) |
 | `REQUIRE_API_KEY` | `true` | Require API key for endpoints ⚠️ |
 | `ADMIN_API_KEY` | *(auto)* | Admin key for managing API keys |
-| `OPENROUTER_API_KEY` | — | API key for chatbot (get from [openrouter.ai](https://openrouter.ai)) |
 | `CORS_ALLOWED_ORIGINS` | `localhost` | Comma-separated allowed origins |
 | `SSL_CERT_PATH` | — | Path to SSL cert (for HTTPS) |
 | `SSL_KEY_PATH` | — | Path to SSL key (for HTTPS) |
@@ -546,10 +551,12 @@ phishguard/
 │   │   └── detector.py         # ML model loader
 │   └── utils/
 │       ├── auth.py             # API key auth (generate, validate, manage)
+│       ├── chatbot_faq.py      # Offline FAQ chatbot (12 topics)
+│       ├── constants.py        # Shared constants (TLDs, brands, keywords)
 │       ├── feature_extractor.py    # 31-feature extraction
 │       ├── rule_analyzer.py        # Rule-based heuristics
-│       ├── ssl_checker.py          # SSL certificate validation
-│       ├── whois_checker.py        # WHOIS lookup
+│       ├── ssl_checker.py          # SSL certificate validation (thread-safe)
+│       ├── whois_checker.py        # WHOIS lookup (thread-safe)
 │       ├── unshortener.py          # URL shortener resolver (SSRF protected)
 │       ├── validators.py           # URL validation
 │       └── __init__.py
