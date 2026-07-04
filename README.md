@@ -3,9 +3,10 @@
 **Advanced Phishing URL Detection System** — A final-year cybersecurity project by students at **Hamdard University, Karachi**.
 
 PhishGuard analyzes URLs using a **dual-detection approach**: rule-based heuristics (SSL, WHOIS, URL structure, brand keyword detection) combined with a **Random Forest ML model** (31 features) to classify URLs with a **3-tier verdict**: 
+
 ✅ Safe, ⚡ Risky, 🛑 Phishing.
 
-🌐 **Live Demo:** [https://phishguard.onrender.com](https://phishguard-pz28.onrender.com)
+🌐 **Live Demo:** [PhishGuard — Real-Time Phishing Detection System](https://phishguard-pz28.onrender.com)
 
 ---
 
