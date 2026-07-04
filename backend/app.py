@@ -2,7 +2,6 @@ import os
 import sys
 import logging
 import secrets
-import requests
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
@@ -326,62 +325,21 @@ def stats():
     return jsonify(get_stats())
 
 
-CHATBOT_SYSTEM_PROMPT = (
-    "You are PhishGuard's AI assistant, embedded in a phishing detection "
-    "website. About this project: it detects phishing URLs in real time using "
-    "rule-based analysis, a Random Forest ML model, WHOIS/SSL checks, and "
-    "blacklist verification. It also has a browser extension. Help users "
-    "understand how to use the site, explain phishing/cybersecurity concepts, "
-    "and answer any other question the user has, just like a normal AI "
-    "assistant — don't restrict yourself only to phishing topics."
-)
-
-
+# Offline FAQ endpoint — returns predefined answers about phishing/security
+# No API key required, no external service calls
 @app.route('/chatbot', methods=['POST'])
 def chatbot():
-    client_ip = request.remote_addr or 'unknown'
-    if check_rate_limit(client_ip, RATE_LIMIT_WINDOW, RATE_LIMIT_MAX):
-        return jsonify({'reply': 'Rate limit exceeded. Please wait a moment before asking more questions.'}), 429
-
     data = request.get_json(silent=True)
     if not data:
         return jsonify({'reply': 'Please send a valid message.'}), 400
 
-    message = data.get('message', '').strip() if data else ''
-    history = data.get('history', []) if data else []
-    message = message[:500]
-
+    message = data.get('message', '').strip()[:300] if data else ''
     if not message:
         return jsonify({'reply': 'Please ask me a question about phishing or online security!'})
 
-    if not config.OPENROUTER_API_KEY:
-        logger.error('OPENROUTER_API_KEY is not configured')
-        return jsonify({'reply': 'Sorry, I\'m having trouble responding right now. Please try again.'}), 502
-
-    messages = [{'role': 'system', 'content': CHATBOT_SYSTEM_PROMPT}]
-    recent_history = history[-10:] if isinstance(history, list) else []
-    messages.extend(recent_history)
-    messages.append({'role': 'user', 'content': message})
-
-    try:
-        resp = requests.post(
-            'https://openrouter.ai/api/v1/chat/completions',
-            headers={
-                'Authorization': f'Bearer {config.OPENROUTER_API_KEY}',
-                'Content-Type': 'application/json',
-            },
-            json={
-                'model': 'openai/gpt-oss-20b:free',
-                'messages': messages,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        reply = resp.json()['choices'][0]['message']['content']
-        return jsonify({'reply': reply})
-    except Exception as e:
-        logger.error(f'OpenRouter API call failed: {e}')
-        return jsonify({'reply': 'Sorry, I\'m having trouble responding right now. Please try again.'}), 502
+    from backend.utils.chatbot_faq import get_faq_answer
+    reply = get_faq_answer(message)
+    return jsonify({'reply': reply})
 
 
 def require_admin_key(f):

@@ -18,7 +18,6 @@ class Config:
         os.path.dirname(os.path.dirname(__file__)),
         'backend', 'phishing_model.pkl'
     )
-    OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
     # CORS: default allows local dev. Override with CORS_ALLOWED_ORIGINS env var for custom domains.
     # On Render, the frontend and API share the same domain, so CORS is less critical.
     _default_origins = os.getenv('CORS_ALLOWED_ORIGINS', '')
