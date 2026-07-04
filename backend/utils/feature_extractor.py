@@ -2,9 +2,7 @@ import re
 import math
 from urllib.parse import urlparse
 
-SUSPICIOUS_TLDS = {'.tk', '.ml', '.ga', '.cf', '.gq', '.xyz', '.top', '.work', '.click', '.link', '.info', '.online', '.site', '.website', '.bid', '.cam', '.date', '.download', '.loan', '.men', '.review', '.stream', '.trade', '.win'}
-TARGETED_BRANDS = ['paypal', 'apple', 'amazon', 'microsoft', 'google', 'facebook', 'netflix', 'bank', 'chase', 'wellsfargo', 'citibank', 'dropbox', 'linkedin', 'instagram', 'twitter', 'outlook', 'office365', 'icloud', 'americanexpress', 'ebay', 'adobe']
-SENSITIVE_KEYWORDS = ['login', 'signin', 'verify', 'secure', 'update', 'confirm', 'account', 'banking', 'password', 'credential']
+from backend.utils.constants import SUSPICIOUS_TLDS, TARGETED_BRANDS, SENSITIVE_KEYWORDS
 
 _ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
 

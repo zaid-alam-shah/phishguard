@@ -1,10 +1,12 @@
 import logging
+import threading
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
 whois_cache = {}
+_cache_lock = threading.Lock()
 
 try:
     import whois as whois_lib
@@ -26,8 +28,9 @@ def get_domain_age_days(domain):
     if not HAS_WHOIS:
         return None
 
-    if domain in whois_cache:
-        return whois_cache[domain]
+    with _cache_lock:
+        if domain in whois_cache:
+            return whois_cache[domain]
 
     try:
         w = whois_lib.whois(domain)
@@ -45,12 +48,14 @@ def get_domain_age_days(domain):
             now = datetime.now(timezone.utc)
 
         age_days = (now - creation_date).days
-        whois_cache[domain] = age_days
+        with _cache_lock:
+            whois_cache[domain] = age_days
         logger.info(f'WHOIS: {domain} is {age_days} days old')
         return age_days
     except Exception as e:
         logger.warning(f'WHOIS lookup failed for {domain}: {e}')
-        whois_cache[domain] = None
+        with _cache_lock:
+            whois_cache[domain] = None
         return None
 
 

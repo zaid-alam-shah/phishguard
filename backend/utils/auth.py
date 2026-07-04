@@ -9,58 +9,79 @@ logger = logging.getLogger(__name__)
 
 API_KEY_HASHES = set()
 
-try:
-    from backend.database import get_connection, _execute, USE_PG
-    from backend.config import config
-    import sys
-    import os
-    _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    if _project_root not in sys.path:
-        sys.path.insert(0, _project_root)
+# ── Database-backed API key management ──────────────────────────
+# Only catch ImportError so that missing dependencies are handled
+# gracefully without masking genuine runtime errors.
 
-    def init_api_keys_db():
-        """Initialize the API keys table."""
+def init_api_keys_db():
+    """Initialize the API keys table."""
+    try:
+        from backend.database import get_connection, _execute, USE_PG
+    except ImportError:
+        logger.warning('backend.database not available — API keys are in-memory only')
+        return
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_PG:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id SERIAL PRIMARY KEY,
+                key_hash TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used TIMESTAMP,
+                is_active INTEGER DEFAULT 1
+            )
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key_hash TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_used DATETIME,
+                is_active INTEGER DEFAULT 1
+            )
+        ''')
+    conn.commit()
+    conn.close()
+
+
+def _get_db_helpers():
+    """Import database helpers lazily. Returns (get_connection, _execute, USE_PG) or (None, None, False)."""
+    try:
+        from backend.database import get_connection, _execute, USE_PG
+        return get_connection, _execute, USE_PG
+    except ImportError:
+        return None, None, False
+
+
+def load_api_keys():
+    global API_KEY_HASHES
+    get_connection, _execute, USE_PG = _get_db_helpers()
+    if get_connection is None:
+        logger.warning('Database not available — cannot load API keys from DB')
+        return
+    try:
         conn = get_connection()
         cursor = conn.cursor()
-        if USE_PG:
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS api_keys (
-                    id SERIAL PRIMARY KEY,
-                    key_hash TEXT UNIQUE NOT NULL,
-                    name TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_used TIMESTAMP,
-                    is_active INTEGER DEFAULT 1
-                )
-            ''')
-        else:
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS api_keys (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    key_hash TEXT UNIQUE NOT NULL,
-                    name TEXT NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    last_used DATETIME,
-                    is_active INTEGER DEFAULT 1
-                )
-            ''')
-        conn.commit()
+        _execute(cursor, "SELECT key_hash FROM api_keys WHERE is_active=1")
+        rows = cursor.fetchall()
+        API_KEY_HASHES = set(row[0] for row in rows)
         conn.close()
+        logger.info(f'Loaded {len(API_KEY_HASHES)} active API keys')
+    except Exception as e:
+        logger.error(f'Failed to load API keys: {e}')
 
-    def load_api_keys():
-        global API_KEY_HASHES
-        try:
-            conn = get_connection()
-            cursor = conn.cursor()
-            _execute(cursor, "SELECT key_hash FROM api_keys WHERE is_active=1")
-            rows = cursor.fetchall()
-            API_KEY_HASHES = set(row[0] for row in rows)
-            conn.close()
-            logger.info(f'Loaded {len(API_KEY_HASHES)} active API keys')
-        except Exception as e:
-            logger.error(f'Failed to load API keys: {e}')
 
-    def save_api_key(key_hash, name):
+def save_api_key(key_hash, name):
+    get_connection, _execute, USE_PG = _get_db_helpers()
+    if get_connection is None:
+        API_KEY_HASHES.add(key_hash)
+        return
+    try:
         conn = get_connection()
         cursor = conn.cursor()
         if USE_PG:
@@ -70,28 +91,25 @@ try:
         conn.commit()
         conn.close()
         API_KEY_HASHES.add(key_hash)
+    except Exception as e:
+        logger.error(f'Failed to save API key to DB for "{name}": {e}. Using in-memory only.')
+        API_KEY_HASHES.add(key_hash)
 
-    def remove_api_key(key_hash):
+
+def remove_api_key(key_hash):
+    get_connection, _execute, USE_PG = _get_db_helpers()
+    if get_connection is None:
+        API_KEY_HASHES.discard(key_hash)
+        return
+    try:
         conn = get_connection()
         cursor = conn.cursor()
         _execute(cursor, "UPDATE api_keys SET is_active=0 WHERE key_hash=%s", (key_hash,))
         conn.commit()
         conn.close()
         API_KEY_HASHES.discard(key_hash)
-
-except Exception as e:
-    logger.error(f'API key DB init failed: {e}')
-
-    def init_api_keys_db():
-        pass
-
-    def load_api_keys():
-        pass
-
-    def save_api_key(key_hash, name):
-        API_KEY_HASHES.add(key_hash)
-
-    def remove_api_key(key_hash):
+    except Exception as e:
+        logger.error(f'Failed to revoke API key: {e}')
         API_KEY_HASHES.discard(key_hash)
 
 
@@ -116,6 +134,9 @@ def validate_api_key(raw_key):
     # Fallback: check database directly (handles gunicorn multi-worker where
     # each worker has its own in-memory set — the key might have been created
     # by another worker and is only in the DB)
+    get_connection, _execute, USE_PG = _get_db_helpers()
+    if get_connection is None:
+        return key_hash in API_KEY_HASHES
     try:
         conn = get_connection()
         cursor = conn.cursor()

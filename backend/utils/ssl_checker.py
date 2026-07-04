@@ -1,5 +1,6 @@
 import ssl
 import socket
+import threading
 import logging
 from datetime import datetime, timezone
 from urllib.parse import urlparse
@@ -7,6 +8,7 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 ssl_cache = {}
+_cache_lock = threading.Lock()
 
 
 def check_ssl(url, timeout=5):
@@ -16,12 +18,14 @@ def check_ssl(url, timeout=5):
         if not hostname:
             return None, None, None, None
 
-        if hostname in ssl_cache:
-            return ssl_cache[hostname]
+        with _cache_lock:
+            if hostname in ssl_cache:
+                return ssl_cache[hostname]
 
         if parsed.scheme == 'http':
-            result = (False, None, None, 'Uses HTTP (no SSL)')
-            ssl_cache[hostname] = result
+            result = (None, None, None, 'Uses HTTP (no SSL)')
+            with _cache_lock:
+                ssl_cache[hostname] = result
             return result
 
         ctx = ssl.create_default_context()
@@ -33,13 +37,15 @@ def check_ssl(url, timeout=5):
                 cert = ssock.getpeercert()
                 if not cert:
                     result = (False, None, None, 'No certificate returned')
-                    ssl_cache[hostname] = result
+                    with _cache_lock:
+                        ssl_cache[hostname] = result
                     return result
 
                 not_after_str = cert.get('notAfter', '')
                 if not not_after_str:
                     result = (True, None, None, 'No expiry date in cert')
-                    ssl_cache[hostname] = result
+                    with _cache_lock:
+                        ssl_cache[hostname] = result
                     return result
 
                 not_after = datetime.strptime(not_after_str, '%b %d %H:%M:%S %Y %Z')
@@ -54,7 +60,8 @@ def check_ssl(url, timeout=5):
                 is_valid = days_left > 0
 
                 result = (is_valid, days_left, issuer, None)
-                ssl_cache[hostname] = result
+                with _cache_lock:
+                    ssl_cache[hostname] = result
                 return result
 
     except ssl.CertificateError as e:
@@ -76,6 +83,16 @@ def get_ssl_risk_issues(url):
 
     issues = []
     risk_score = 0
+
+    # HTTP check FIRST — must come before is_valid is None check
+    # because check_ssl returns (None, None, None, 'Uses HTTP (no SSL)') for HTTP URLs
+    if error == 'Uses HTTP (no SSL)':
+        issues.append({
+            'severity': 'medium',
+            'text': 'Uses HTTP instead of HTTPS'
+        })
+        risk_score += 15
+        return issues, min(risk_score, 100)
 
     if is_valid is None:
         issues.append({
@@ -117,11 +134,5 @@ def get_ssl_risk_issues(url):
                     'text': f'SSL certificate expires in {days_left} days'
                 })
                 risk_score += 3
-            elif error == 'Uses HTTP (no SSL)':
-                issues.append({
-                    'severity': 'medium',
-                    'text': 'Uses HTTP instead of HTTPS'
-                })
-                risk_score += 15
 
     return issues, min(risk_score, 100)

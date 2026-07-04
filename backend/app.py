@@ -112,39 +112,35 @@ def index():
     return send_from_directory(FRONTEND_DIR, 'index.html')
 
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    client_ip = request.remote_addr or 'unknown'
-    if check_rate_limit(client_ip, RATE_LIMIT_WINDOW, RATE_LIMIT_MAX):
-        return jsonify({'error': 'Rate limit exceeded. Try again later.'}), 429
+def _run_url_scan(raw_url, index=None):
+    """Core URL scan logic shared by /predict and /bulk-predict.
 
-    if REQUIRE_API_KEY:
-        auth_header = request.headers.get('Authorization', '')
-        api_key = request.args.get('api_key', '')
-        valid = False
-        if auth_header.startswith('Bearer '):
-            valid = validate_api_key(auth_header[7:])
-        if not valid and api_key:
-            valid = validate_api_key(api_key)
-        if not valid:
-            return jsonify({'error': 'Valid API key required. Set REQUIRE_API_KEY=false to disable.'}), 401
+    Returns a dict with scan results, or an error dict with an 'error' key
+    and optional 'status_code' for HTTP-level errors.
+    If index is provided (bulk mode), includes the index for ordering.
+    """
+    raw_url = raw_url.strip()
+    if not raw_url:
+        return None if index is not None else {'error': 'URL is required'}
 
-    data = request.get_json(silent=True)
-    if not data:
-        return jsonify({'error': 'Invalid JSON body'}), 400
-
-    raw_url = data.get('url', '').strip() if data else ''
     is_valid, result = validate_predict_url(raw_url)
     if not is_valid:
-        return jsonify({'error': result}), 400
+        err = {'error': result}
+        if index is not None:
+            err['url'] = raw_url
+            err['index'] = index
+        return err
 
     is_valid, normalized_url = validate_url(result)
     if not is_valid:
-        return jsonify({'error': normalized_url}), 400
+        err = {'error': normalized_url}
+        if index is not None:
+            err['url'] = raw_url
+            err['index'] = index
+        return err
 
     original_url = normalized_url
     resolved_url, was_shortened = unshorten_url(normalized_url)
-
     scan_url = resolved_url if was_shortened else normalized_url
 
     rule_result = analyze_url(scan_url)
@@ -172,10 +168,12 @@ def predict():
     ml_result, ml_error = detector.predict(features)
 
     if ml_error:
-        logger.error(f'ML prediction error: {ml_error}')
-        return jsonify({'error': 'ML model unavailable'}), 503
+        err = {'error': 'ML model unavailable', 'status_code': 503}
+        if index is not None:
+            err['url'] = scan_url
+            err['index'] = index
+        return err
 
-    # Boost combined risk when multiple high-severity rule flags are present
     high_severity_count = sum(1 for issue in rule_result['issues'] if issue.get('severity') == 'high')
     combined_risk = max(rule_result['risk_score'], ml_result['phishing_probability'])
     if high_severity_count >= 2:
@@ -190,7 +188,6 @@ def predict():
         rule_flags=[i['text'] for i in rule_result['issues']]
     )
 
-    # 3-tier verdict: safe (<40), risky (40-59), phishing (60+)
     if combined_risk >= 60:
         verdict = 'phishing'
     elif combined_risk >= 40:
@@ -198,7 +195,7 @@ def predict():
     else:
         verdict = 'safe'
 
-    return jsonify({
+    result_dict = {
         'url': scan_url,
         'original_url': original_url if was_shortened else None,
         'was_shortened': was_shortened,
@@ -207,7 +204,59 @@ def predict():
         'ml_result': ml_result,
         'combined_risk_score': combined_risk,
         'final_verdict': verdict
-    })
+    }
+    if index is not None:
+        result_dict['index'] = index
+    return result_dict
+
+
+def _check_auth():
+    """Check API key auth. Returns a (is_authorized, error_response) tuple."""
+    if not REQUIRE_API_KEY:
+        return True, None
+    auth_header = request.headers.get('Authorization', '')
+    api_key = request.args.get('api_key', '')
+    valid = False
+    if auth_header.startswith('Bearer '):
+        valid = validate_api_key(auth_header[7:])
+    if not valid and api_key:
+        valid = validate_api_key(api_key)
+    if not valid:
+        return False, (jsonify({'error': 'Valid API key required. Set REQUIRE_API_KEY=false to disable.'}), 401)
+    return True, None
+
+
+def _check_body(data):
+    """Validate that request has a JSON body."""
+    if not data:
+        return jsonify({'error': 'Invalid JSON body'}), 400
+    return None
+
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    client_ip = request.remote_addr or 'unknown'
+    if check_rate_limit(client_ip, RATE_LIMIT_WINDOW, RATE_LIMIT_MAX):
+        return jsonify({'error': 'Rate limit exceeded. Try again later.'}), 429
+
+    authorized, err_resp = _check_auth()
+    if not authorized:
+        return err_resp
+
+    data = request.get_json(silent=True)
+    body_err = _check_body(data)
+    if body_err:
+        return body_err
+
+    raw_url = data.get('url', '').strip()
+    result = _run_url_scan(raw_url)
+
+    if isinstance(result, dict) and 'error' in result:
+        # Use error-specific status code (e.g. 503 for ML unavailable) or default to 400
+        status = result.get('status_code', 400)
+        return jsonify({'error': result['error']}), status
+
+    return jsonify(result)
 
 
 @app.route('/bulk-predict', methods=['POST'])
@@ -217,8 +266,9 @@ def bulk_predict():
         return jsonify({'error': 'Rate limit exceeded. Try again later.'}), 429
 
     data = request.get_json(silent=True)
-    if not data:
-        return jsonify({'error': 'Invalid JSON body'}), 400
+    body_err = _check_body(data)
+    if body_err:
+        return body_err
 
     urls = data.get('urls', [])
     if not urls or not isinstance(urls, list):
@@ -227,101 +277,15 @@ def bulk_predict():
     if len(urls) > 20:
         return jsonify({'error': 'Maximum 20 URLs per bulk scan'}), 400
 
-    if REQUIRE_API_KEY:
-        auth_header = request.headers.get('Authorization', '')
-        api_key = request.args.get('api_key', '')
-        valid = False
-        if auth_header.startswith('Bearer '):
-            valid = validate_api_key(auth_header[7:])
-        if not valid and api_key:
-            valid = validate_api_key(api_key)
-        if not valid:
-            return jsonify({'error': 'Valid API key required. Set REQUIRE_API_KEY=false to disable.'}), 401
-
-    def process_single_url(args):
-        i, raw_url = args
-        raw_url = raw_url.strip()
-        if not raw_url:
-            return None
-
-        is_valid, result = validate_predict_url(raw_url)
-        if not is_valid:
-            return {'url': raw_url, 'error': result, 'index': i}
-
-        is_valid, normalized_url = validate_url(result)
-        if not is_valid:
-            return {'url': raw_url, 'error': normalized_url, 'index': i}
-
-        original_url = normalized_url
-        resolved_url, was_shortened = unshorten_url(normalized_url)
-        scan_url = resolved_url if was_shortened else normalized_url
-
-        rule_result = analyze_url(scan_url)
-
-        whois_issues, whois_risk, domain_age = get_domain_risk_issues(scan_url)
-        for issue in whois_issues:
-            rule_result['issues'].append(issue)
-        rule_result['risk_score'] = min(rule_result['risk_score'] + whois_risk, 100)
-
-        ssl_issues, ssl_risk = get_ssl_risk_issues(scan_url)
-        for issue in ssl_issues:
-            rule_result['issues'].append(issue)
-        rule_result['risk_score'] = min(rule_result['risk_score'] + ssl_risk, 100)
-
-        risk_level = 'low'
-        if rule_result['risk_score'] >= 75:
-            risk_level = 'critical'
-        elif rule_result['risk_score'] >= 50:
-            risk_level = 'high'
-        elif rule_result['risk_score'] >= 25:
-            risk_level = 'medium'
-        rule_result['risk_level'] = risk_level
-
-        features = extract_features(scan_url)
-        ml_result, ml_error = detector.predict(features)
-
-        if ml_error:
-            return {'url': scan_url, 'error': 'ML model unavailable', 'index': i}
-
-        high_severity_count = sum(1 for issue in rule_result['issues'] if issue.get('severity') == 'high')
-        combined_risk = max(rule_result['risk_score'], ml_result['phishing_probability'])
-        if high_severity_count >= 2:
-            combined_risk = min(combined_risk + 15, 100)
-
-        save_scan(
-            url=scan_url,
-            original_url=original_url if was_shortened else None,
-            ml_result=ml_result['prediction'],
-            ml_score=ml_result['phishing_probability'],
-            risk_score=combined_risk,
-            rule_flags=[j['text'] for j in rule_result['issues']]
-        )
-
-        # 3-tier verdict: safe (<40), risky (40-59), phishing (60+)
-        if combined_risk >= 60:
-            verdict = 'phishing'
-        elif combined_risk >= 40:
-            verdict = 'risky'
-        else:
-            verdict = 'safe'
-
-        return {
-            'index': i,
-            'url': scan_url,
-            'original_url': original_url if was_shortened else None,
-            'was_shortened': was_shortened,
-            'domain_age_days': domain_age,
-            'rule_based': rule_result,
-            'ml_result': ml_result,
-            'combined_risk_score': combined_risk,
-            'final_verdict': verdict
-        }
+    authorized, err_resp = _check_auth()
+    if not authorized:
+        return err_resp
 
     # Process all URLs in parallel — max 6 workers to avoid overloading
     raw_results = {}
     with ThreadPoolExecutor(max_workers=6) as executor:
         future_to_idx = {
-            executor.submit(process_single_url, (i, url)): i
+            executor.submit(_run_url_scan, url, i): i
             for i, url in enumerate(urls)
         }
         for future in as_completed(future_to_idx):

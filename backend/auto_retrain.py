@@ -4,7 +4,6 @@ import json
 import time
 import logging
 import numpy as np
-import sqlite3
 from datetime import datetime, timedelta
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -24,22 +23,23 @@ try:
 except ImportError:
     from utils.feature_extractor import extract_features, FEATURE_NAMES
 
+from backend.database import get_connection, _execute
 
-def load_training_data(db_path, min_samples=50):
-    if not os.path.exists(db_path):
-        logger.warning(f'Database not found at {db_path}')
-        return None, None
 
-    conn = sqlite3.connect(db_path)
+def load_training_data(min_samples=50):
+    """Load training data from the database (works with both SQLite and PostgreSQL)."""
     try:
-        rows = conn.execute(
+        conn = get_connection()
+        cursor = conn.cursor()
+        _execute(
+            cursor,
             "SELECT url, ml_score, risk_score, rule_flags, ml_result FROM scans ORDER BY id DESC LIMIT 10000"
-        ).fetchall()
+        )
+        rows = cursor.fetchall()
+        conn.close()
     except Exception as e:
         logger.error(f'Query failed: {e}')
-        conn.close()
         return None, None
-    conn.close()
 
     if len(rows) < min_samples:
         logger.info(f'Only {len(rows)} scans (need {min_samples}), skipping retrain')
@@ -48,10 +48,11 @@ def load_training_data(db_path, min_samples=50):
     X = []
     y = []
     for row in rows:
-        url, ml_score, risk_score, rule_flags, ml_result = row
+        # row[:5] works on both psycopg2 tuples and sqlite3.Row objects
+        url, ml_score, risk_score, rule_flags, ml_result = row[:5]
         features = extract_features(url)
         X.append(features)
-        label = 1 if (risk_score > 50 or ml_result == 'phishing') else 0
+        label = 1 if (risk_score is not None and risk_score > 50) or ml_result == 'phishing' else 0
         y.append(label)
 
     return np.array(X), np.array(y)
@@ -103,7 +104,7 @@ def main():
         shutil.copy2(model_path, backup_model_path)
         logger.info(f'Backup saved to {backup_model_path}')
 
-    X, y = load_training_data(db_path)
+    X, y = load_training_data(min_samples=50)
     if X is None or len(X) < 50:
         logger.info('Insufficient data. Pipeline complete — no retrain.')
         return

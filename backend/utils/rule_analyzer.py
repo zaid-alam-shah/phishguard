@@ -1,13 +1,9 @@
 import re
 from urllib.parse import urlparse
 
-
-SUSPICIOUS_TLDS = ['.tk', '.ml', '.ga', '.cf', '.gq', '.xyz', '.top', '.work', '.click', '.link', '.info', '.online', '.site', '.website']
-TARGETED_BRANDS = ['paypal', 'apple', 'amazon', 'microsoft', 'google', 'facebook', 'netflix', 'bank', 'chase', 'wellsfargo', 'citibank', 'dropbox', 'linkedin', 'instagram', 'twitter', 'outlook', 'office365', 'icloud']
-SHORTENERS = ['bit.ly', 'tinyurl', 'goo.gl', 't.co', 'ow.ly', 'is.gd', 'buff.ly', 'adf.ly', 'bit.do']
-
-# Phishing path patterns (e.g., PayPal webscr, cgi-bin, cmd= in URL path)
-PHISHING_PATH_PATTERNS = ['cgi-bin', 'webscr', 'cmd=']
+from backend.utils.constants import (
+    SUSPICIOUS_TLDS, TARGETED_BRANDS, SHORTENERS, PHISHING_PATH_PATTERNS
+)
 
 
 def analyze_url(url):
