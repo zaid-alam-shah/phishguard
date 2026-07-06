@@ -87,7 +87,7 @@ def get_domain_expiry_days(domain):
 def get_domain_risk_issues(url):
     domain = extract_domain(url)
     if not domain:
-        return [], 0
+        return [], 0, None
 
     issues = []
     risk_score = 0

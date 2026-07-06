@@ -116,7 +116,7 @@ def unshorten_url(url, timeout=5):
             }
         )
         final_url = resp.url
-        was_redirected = resp.history and len(resp.history) > 0
+        was_redirected = len(resp.history) > 0
         if was_redirected:
             # Also check the final resolved URL for SSRF
             try:
